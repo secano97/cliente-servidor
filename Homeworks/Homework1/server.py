@@ -48,8 +48,9 @@ def main():
             if filename in files:
                 with open(directory + filename, "rb") as input:
                     #data = input.read()
-                    data = os.path.getsize(directory)
-                    datafinal = str(math.ceil(len(data)/(1024*1024)))
+                    data = os.path.getsize(directory + filename)
+                    print (data)
+                    datafinal = str(math.ceil(int(data)/(1024*1024)))
                     s.send_json({"partes":datafinal})
 
             else:
