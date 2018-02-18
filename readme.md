@@ -6,6 +6,7 @@
 # Exercises of Client-Server Class
 [![Python](https://www.python.org/static/community_logos/python-powered-w-100x40.png)](https://www.python.org/)
 Exploring different Distributed Messaging libs for python
+
 ## Exercises
 The following list is a set of exercises that we work in the class
 
@@ -37,11 +38,15 @@ user@pc (clientserver)$ git clone git@github.com:h3ct0rjs/cliente-servidor.git
 user@pc (clientserver)$ cd cliente-servidor
 user@pc/cliente-servidor (clientserver)$ pip install -r requirements.txt    #This will install all the requirements
 ```
-## Step 5. Run python Script
-You will have two python scripts, client and server. Start the server and the start the client.
+## Step 3. Run python Script
+You will have two python scripts, client and server. Start the server and then start the client with the apropiate arguments.
 ```bash
 user@pc/cliente-servidor (clientserver)$ python server.py 
 ```
+```bash
+user@pc/cliente-servidor (clientserver)$ python server.py 
+```
+
 # Getting Help
 You will have always an argument with ***-h*** showing the description and explaining the arguments.
 
@@ -57,7 +62,7 @@ Coded by
 
 * Sebastian Cano U., sebastiancanouribe@utp.edu.co
 * Rodrigo
-License
-----
 
-MIT
+# License
+----
+**MIT**
