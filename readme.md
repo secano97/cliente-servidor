@@ -8,6 +8,7 @@
 Exploring different Distributed Messaging libs for python
 ## Exercises
 The following list is a set of exercises that we work in the class
+
 | Exercise/Homework   |      Deadline      |  Status |
 |----------|:-------------:|------:|
 | Homework1:Basic Client-Server, explore times with multiple clients-ØMQ |  14-Feb | Delivered[OK] |
