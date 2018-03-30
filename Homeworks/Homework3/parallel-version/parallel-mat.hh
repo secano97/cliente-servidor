@@ -95,10 +95,9 @@ uint user_movie_rate(uint user_id, uint movie_id){
   size_t real_avail_users(){
     /* This will determine all real avail users */
     vector<size_t> thread_values;
-    thread_values.resize(4,0);
-
-    uint chunk = (rows - 1)/4;
-  	if((rows -1) % 4) chunk += 1;
+    thread_values.resize(4);
+    double dchunk = (double)(rows - 1)/4;
+    uint chunk = ceil(dchunk);
 
     #pragma omp parallel shared(thread_values,chunk) num_threads(4)
     {
