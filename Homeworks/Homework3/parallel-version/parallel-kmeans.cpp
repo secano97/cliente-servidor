@@ -16,23 +16,6 @@ uint avail_films = 10; //17770; // movies amount
 uint avail_users = 2649429;     // users amount
 uint avail_centroids = 2;	      // centroids amount
 
-// #pragma omp parallel private(i,j,k,tid,noThreads) shared(M3,chunk) num_threads(8)
-// {
-// 	tid = omp_get_thread_num();
-// 	if(tid == 0){
-// 		noThreads = omp_get_num_threads();
-// 		printf("Thread master! with id %d\n",tid);
-// 		printf("Invoked threads number %d",noThreads);
-// 	}
-// 	#pragma omp for schedule(dynamic,chunk)
-// 		for(i=0; i<M1r; i++)
-// 			for(j=0; j<M2c; j++){
-// 				float data = 0.0;
-// 				for(k=0; k<M1c; k++) data = M1[i*M1c+k] * M2[k*M2c+j] + data;
-// 				M3[i*M1c+j] = data;
-// 			}
-// }
-
 void cos_simil(cmat& dataset,c_dmat& centroids,ulmat& similarity){
 	/* This will calculate the cosain similarity between this and centroids */
 	uint chunk = dataset.numRows()/4;
