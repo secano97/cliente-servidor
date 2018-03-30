@@ -3,7 +3,7 @@
 #include <sstream>
 #include <string>
 #include <map>
-#include "mat.hh"
+#include "parallel-mat.hh"
 
 using namespace std;
 using mat = Matrix<cont>;        // setting an alias mat (matrix)
