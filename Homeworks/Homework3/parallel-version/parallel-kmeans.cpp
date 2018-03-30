@@ -18,8 +18,8 @@ uint avail_centroids = 2;	      // centroids amount
 
 void cos_simil(cmat& dataset,c_dmat& centroids,ulmat& similarity){
 	/* This will calculate the cosain similarity between this and centroids */
-	uint chunk = dataset.numRows()/4;
-	if(dataset.numRows() % 4) chunk += 1;
+	double dchunk = (double)dataset.numRows()/4;
+	uint chunk = ceil(dchunk);
 
 	#pragma omp parallel shared(dataset,centroids,similarity,chunk) num_threads(4)
 	{
@@ -59,29 +59,52 @@ void cos_simil(cmat& dataset,c_dmat& centroids,ulmat& similarity){
 
 void find_media(ulmat& similarity,cmat& dataset,dmat& new_centroids){
 	/* This will calculate media between users into one set from similarity */
-	for(uint cent_id=0 ;cent_id < new_centroids.numRows(); cent_id++){
-		for(uint movie_id=0; movie_id < new_centroids.numCols(); movie_id++){
-			double user_rate_summary = 0.0;
-			for(auto& user_id : similarity.data[cent_id])
-				user_rate_summary += dataset.user_movie_rate(user_id,movie_id);
-			double media = user_rate_summary / similarity.data[cent_id].size();
-			double &d = new_centroids.at(cent_id,movie_id);
-			d = media;
+	double dchunk = (double)dataset.numRows()/4;
+	uint chunk = ceil(dchunk);
+
+	#pragma omp parallel shared(similarity,dataset,new_centroids,chunk) num_threads(4)
+	{
+
+		#pragma omp for schedule(dynamic,chunk) nowait
+		for(uint cent_id=0 ;cent_id < new_centroids.numRows(); cent_id++){
+			for(uint movie_id=0; movie_id < new_centroids.numCols(); movie_id++){
+				double user_rate_summary = 0.0;
+				for(auto& user_id : similarity.data[cent_id])
+					user_rate_summary += dataset.user_movie_rate(user_id,movie_id);
+				double media = user_rate_summary / similarity.data[cent_id].size();
+				double &d = new_centroids.at(cent_id,movie_id);
+				d = media;
+			}
 		}
 	}
 }
 
 double eucli_dist(dmat& old_cent,dmat& new_cent){
 	/* This will calculate euclidian distance between two matrix */
-	double val = 0.0;
-	for(uint i=0; i<old_cent.numRows(); i++){
-		for(uint j=0; j<old_cent.numCols(); j++){
-			double old_rate = old_cent.at(i,j);
-			double new_rate = new_cent.at(i,j);
-			val += pow((old_rate - new_rate),2);
+	vector<double> thread_values;
+	thread_values.resize(4);
+	double dchunk = (double)old_cent.numRows()/4;
+	uint chunk = ceil(dchunk);
+
+	#pragma omp parallel shared(thread_values,old_cent,new_cent,chunk) num_threads(4)
+	{
+		double value = 0.0;
+		#pragma omp for schedule(dynamic,chunk) nowait
+		for(uint i=0; i<old_cent.numRows(); i++){
+			for(uint j=0; j<old_cent.numCols(); j++){
+				double old_rate = old_cent.at(i,j);
+				double new_rate = new_cent.at(i,j);
+				value += pow((old_rate - new_rate),2);
+			}
 		}
+		thread_values[omp_get_thread_num()] = value;
 	}
-	return sqrt(val);
+
+	double total = 0.0;
+	for(auto& value : thread_values)
+		total += value;
+
+	return sqrt(total);
 }
 
 int main(int argc, char *argv[]){
