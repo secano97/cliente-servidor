@@ -32,7 +32,7 @@ void load_data(str fileName,const size_t& avail_users,mat& dataset){
 
   file.close();                   // closing file
   size_t real_avail_users = temp.real_avail_users();
-  cout << "Real users are = " << real_avail_users << endl;
+  cout << "Users that at least rated a movie = " << real_avail_users << endl;
   dataset.resize(real_avail_users);
   temp.pass_data(dataset);
   temp.clear();
