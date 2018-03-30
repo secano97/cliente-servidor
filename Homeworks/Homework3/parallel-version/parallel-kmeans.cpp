@@ -11,13 +11,12 @@ using dmat = Matrix<double>;
 using ulmat = Matrix<ulist>;
 using cmat = Matrix<cont>;
 
-// GLOBALS
 uint avail_films = 10; //17770; // movies amount
 uint avail_users = 2649429;     // users amount
 uint avail_centroids = 2;	      // centroids amount
 
 void cos_simil(cmat& dataset,c_dmat& centroids,ulmat& similarity){
-	/* This will calculate the cosain similarity between this and centroids */
+	/* This will calculate the cosain similarity between centroids and users */
 	double dchunk = (double)dataset.numRows()/4;
 	uint chunk = ceil(dchunk);
 
@@ -122,6 +121,7 @@ int main(int argc, char *argv[]){
 	centroids.fill_like_num();
 	//centroids.print_num();
 
+	Timer timer;
 	while(true){
 		/* ----------- phase 3 building similarity sets ----------- */
 		Matrix <ulist>similarity(avail_centroids);
@@ -139,6 +139,7 @@ int main(int argc, char *argv[]){
 		if(eucli_dis_val < 1.0) break;
 		centroids = move(new_centroids);
 	}
+	cout << "Transcurred seconds = " <<	(double)timer.elapsed()/1000 << endl;
 
 	return 0;
 }
