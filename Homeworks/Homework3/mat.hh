@@ -17,11 +17,11 @@ typedef string str;
 template <class T>
 class Matrix {
 private:
-  vector<T> data;
   size_t rows;
   size_t cols;
 
 public:
+  vector<T> data;
   Matrix(size_t r, size_t c) {
     rows = r;
     cols = c;
@@ -29,71 +29,25 @@ public:
   }
 
   Matrix(const size_t& total){
+    rows = total;
     data.resize(total);
   }
 
-  Matrix(){}
+  Matrix(){
+    rows = 0;
+    cols = 0;
+  }
 
   size_t numRows() const { return rows; }
   size_t numCols() const { return cols; }
 
   void resize(const size_t& new_size){
+    rows = new_size;
     data.resize(new_size);
   }
 
   void clear(){
     data.clear();
-  }
-
-/* -------------------- K-means section -------------------- */
-
-  void cos_simil(const Matrix<double>& centroids,Matrix<ulist>& similarity){
-  	/* This will calculate the cosain similarity between this and centroids */
-    uint user_id = 0;
-    for(auto& user : data){
-      uint temp_cent_id = 0;
-      double temp_simil_val = numeric_limits<double>::max();
-
-      for(uint cent_idx = 0; cent_idx < centroids.numRows(); cent_idx++){
-        double Ai_x_Bi = 0.0, Ai2 = 0.0, Bi2 = 0.0;
-
-        for(uint movie_id=0; movie_id < centroids.numCols(); movie_id++){
-          double cent_rate = centroids.at(cent_idx,movie_id);
-          Ai2 += pow(cent_rate,2);
-        }
-
-        for(auto& movie : user){
-          double cent_rate = centroids.at(cent_idx,movie.first);
-          double user_rate = movie.second;
-          Ai_x_Bi += cent_rate * user_rate;
-          Bi2 += pow(user_rate,2);
-        }
-
-        double similarity_value = Ai_x_Bi/(sqrt(Ai2) * sqrt(Bi2));
-        if(similarity_value < temp_simil_val){
-          temp_simil_val = similarity_value;
-          temp_cent_id = cent_idx;
-        }
-
-      }
-
-      similarity.fill_like_list(temp_cent_id,user_id);
-      user_id ++;
-    }
-  }
-
-  void find_media(Matrix<cont>& dataset,Matrix<double>& new_centroids){
-    /* This will calculate media between users into one set from similarity */
-    for(uint cent_id=0 ;cent_id < new_centroids.numRows(); cent_id++){
-      for(uint movie_id=0; movie_id < new_centroids.numCols(); movie_id++){
-        double user_rate_summary = 0.0;
-        for(auto& user_id : data[cent_id])// User list of a respective centroid
-          user_rate_summary += dataset.user_movie_rate(user_id,movie_id);
-        double media = user_rate_summary / data[cent_id].size();
-        double &d = new_centroids.at(cent_id,movie_id);
-        d = media;
-      }
-    }
   }
 
 /* ------------------ list management section ------------------ */
