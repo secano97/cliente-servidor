@@ -10,8 +10,8 @@ using dmat = Matrix<double>;
 using ulmat = Matrix<ulist>;
 using cmat = Matrix<cont>;
 
-uint avail_films = 10; //17770; // movies amount
-uint avail_users = 2649429;     // users amount
+uint avail_films = 17770+1; 		// movies amount
+uint avail_users = 2649429+1;   // users amount
 uint avail_centroids = 2;	      // centroids amount
 
 void cos_simil(const cmat& dataset,const dmat& centroids,ulmat& similarity){
@@ -32,7 +32,7 @@ void cos_simil(const cmat& dataset,const dmat& centroids,ulmat& similarity){
 			for(uint cent_idx = 0; cent_idx < centroids.numRows(); cent_idx++){
 				double Ai_x_Bi = 0.0, Ai2 = 0.0, Bi2 = 0.0;
 
-				for(uint movie_id=0; movie_id < centroids.numCols(); movie_id++){
+				for(uint movie_id=1; movie_id <= centroids.numCols(); movie_id++){
 					double cent_rate = centroids.at(cent_idx,movie_id);
 					Ai2 += pow(cent_rate,2);
 				}
@@ -69,10 +69,11 @@ void find_media(const ulmat& similarity,const cmat& dataset,dmat& new_centroids)
 
 		#pragma omp for schedule(dynamic,chunk) nowait
 		for(uint cent_id=0 ;cent_id < new_centroids.numRows(); cent_id++){
-			for(uint movie_id=0; movie_id < new_centroids.numCols(); movie_id++){
+			if(!similarity.get_set_size(cent_id)) continue;
+			for(uint movie_id=1; movie_id <= new_centroids.numCols(); movie_id++){
 				double user_rate_summary = 0.0;
 				for(auto& user_id : similarity.data[cent_id])
-					user_rate_summary += dataset.user_movie_rate(user_id,movie_id);
+					user_rate_summary += (double)dataset.user_movie_rate(user_id,movie_id);
 				double media = user_rate_summary / (double)similarity.get_set_size(cent_id);
 				double &d = new_centroids.at(cent_id,movie_id);
 				d = media;
@@ -92,10 +93,10 @@ double eucli_dist(const dmat& old_cent,const dmat& new_cent){
 	{
 		double value = 0.0;
 		#pragma omp for schedule(dynamic,chunk) nowait
-		for(uint i=0; i<old_cent.numRows(); i++){
-			for(uint j=0; j<old_cent.numCols(); j++){
-				double old_rate = old_cent.at(i,j);
-				double new_rate = new_cent.at(i,j);
+		for(uint cent_id=0; cent_id<old_cent.numRows(); cent_id++){
+			for(uint movie_id=1; movie_id<=old_cent.numCols(); movie_id++){
+				double old_rate = old_cent.at(cent_id,movie_id);
+				double new_rate = new_cent.at(cent_id,movie_id);
 				value += pow((old_rate - new_rate),2);
 			}
 		}
