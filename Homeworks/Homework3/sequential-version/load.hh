@@ -11,7 +11,7 @@ using mat = Matrix<cont>;        // setting an alias mat (matrix)
 void load_data(str fileName,const size_t& avail_users,mat& dataset){
   /* this function will load dataset into memory */
   ifstream file(fileName);        // open file
-  Matrix <cont>temp(avail_users+1); // building dataset of type container
+  Matrix <cont>temp(avail_users); // building dataset of type container
   str line;                       // one line will be loaded into line object
   uint movie_id = 0;              // movie id
 
