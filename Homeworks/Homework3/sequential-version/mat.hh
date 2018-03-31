@@ -24,7 +24,7 @@ public:
   vector<T> data;
   Matrix(size_t r, size_t c) {
     rows = r;
-    cols = c;
+    cols = c-1;
     data.resize(r*c,0.0);
   }
 
