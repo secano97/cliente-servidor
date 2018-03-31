@@ -42,6 +42,10 @@ public:
   size_t numRows() const { return rows; }
   size_t numCols() const { return cols; }
 
+  size_t get_set_size(uint set_id) const {
+    return data[set_id].size();
+  }
+
   void resize(const size_t& new_size){
     rows = new_size;
     data.resize(new_size);
@@ -73,7 +77,7 @@ public:
 
 /* ------------------ dictionary management section ------------------ */
 
-uint user_movie_rate(uint user_id, uint movie_id){
+uint user_movie_rate(uint user_id, uint movie_id) const {
   /* This will search and return user movie rate */
   auto movie = data[user_id].find(movie_id);
   if(movie != data[user_id].end())
