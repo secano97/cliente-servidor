@@ -75,6 +75,11 @@ double eucli_dist(dmat& old_cent,dmat& new_cent){
 	return sqrt(val);
 }
 
+void print_result(ulmat& similarity){
+	for(uint cent_id=0; cent_id < similarity.numRows(); cent_id++)
+		cout << cent_id << " : " << similarity.data[cent_id].size() << "\n";
+}
+
 int main(int argc, char *argv[]){
 	if(argc != 2){
 		cerr << "Usage {" << argv[0] << " filename.txt}\n";
@@ -105,7 +110,10 @@ int main(int argc, char *argv[]){
 		/* ----------- phase 5 euclidian distance between two centroids ----------- */
 		double eucli_dis_val = eucli_dist(centroids,new_centroids);
 		cout << "Current euclidian distance value = " << eucli_dis_val << "\n";
-		if(eucli_dis_val < 1.0) break;
+		if(eucli_dis_val < 1.0){
+			print_result(similarity);
+			break;
+		}
 		centroids = move(new_centroids);
 	}
 	cout << "Transcurred seconds = " <<	(double)timer.elapsed()/1000 << endl;
