@@ -20,6 +20,8 @@ void cos_simil(cmat& dataset,c_dmat& centroids,ulmat& similarity){
 	double dchunk = (double)dataset.numRows()/4;
 	uint chunk = ceil(dchunk);
 
+	omp_lock_t writelock;
+	omp_init_lock(&writelock);
 	#pragma omp parallel shared(dataset,centroids,similarity,chunk) num_threads(4)
 	{
 
@@ -48,12 +50,14 @@ void cos_simil(cmat& dataset,c_dmat& centroids,ulmat& similarity){
 					temp_simil_val = similarity_value;
 					temp_cent_id = cent_idx;
 				}
-
 			}
 
+			omp_set_lock(&writelock);
 			similarity.fill_like_list(temp_cent_id,user_id);
+			omp_unset_lock(&writelock);
 		}
 	}
+	omp_destroy_lock(&writelock);
 }
 
 void find_media(ulmat& similarity,cmat& dataset,dmat& new_centroids){
@@ -78,7 +82,7 @@ void find_media(ulmat& similarity,cmat& dataset,dmat& new_centroids){
 	}
 }
 
-double eucli_dist(dmat& old_cent,dmat& new_cent){
+double eucli_dist(const dmat& old_cent,const dmat& new_cent){
 	/* This will calculate euclidian distance between two matrix */
 	vector<double> thread_values;
 	thread_values.resize(4);
@@ -104,6 +108,11 @@ double eucli_dist(dmat& old_cent,dmat& new_cent){
 		total += value;
 
 	return sqrt(total);
+}
+
+void print_result(const ulmat& similarity){
+	for(uint cent_id=0; cent_id < similarity.numRows(); cent_id++)
+		cout << cent_id << " : " << similarity.data[cent_id].size() << "\n";
 }
 
 int main(int argc, char *argv[]){
@@ -136,7 +145,10 @@ int main(int argc, char *argv[]){
 		/* ----------- phase 5 euclidian distance between two centroids ----------- */
 		double eucli_dis_val = eucli_dist(centroids,new_centroids);
 		cout << "Current euclidian distance value = " << eucli_dis_val << "\n";
-		if(eucli_dis_val < 1.0) break;
+		if(eucli_dis_val < 1.0){
+			print_result(similarity);
+			break;
+		}
 		centroids = move(new_centroids);
 	}
 	cout << "Transcurred seconds = " <<	(double)timer.elapsed()/1000 << endl;
