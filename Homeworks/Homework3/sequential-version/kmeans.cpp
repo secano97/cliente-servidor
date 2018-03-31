@@ -47,7 +47,7 @@ void cos_simil(const cmat& dataset,const dmat& centroids,ulmat& similarity){
 	}
 }
 
-void find_media(const ulmat& similarity,cmat& dataset,dmat& new_centroids){
+void find_media(const ulmat& similarity,const cmat& dataset,dmat& new_centroids){
 	/* This will calculate media between users into one set from similarity */
 	for(uint cent_id=0 ;cent_id < new_centroids.numRows(); cent_id++){
 		for(uint movie_id=0; movie_id < new_centroids.numCols(); movie_id++){

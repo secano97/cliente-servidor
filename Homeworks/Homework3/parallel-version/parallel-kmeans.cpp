@@ -6,7 +6,6 @@
 #include "load.hh"
 
 using namespace std;
-using c_dmat = const Matrix<double>;
 using dmat = Matrix<double>;
 using ulmat = Matrix<ulist>;
 using cmat = Matrix<cont>;
@@ -15,7 +14,7 @@ uint avail_films = 10; //17770; // movies amount
 uint avail_users = 2649429;     // users amount
 uint avail_centroids = 2;	      // centroids amount
 
-void cos_simil(cmat& dataset,c_dmat& centroids,ulmat& similarity){
+void cos_simil(const cmat& dataset,const dmat& centroids,ulmat& similarity){
 	/* This will calculate the cosain similarity between centroids and users */
 	double dchunk = (double)dataset.numRows()/4;
 	uint chunk = ceil(dchunk);
@@ -60,7 +59,7 @@ void cos_simil(cmat& dataset,c_dmat& centroids,ulmat& similarity){
 	omp_destroy_lock(&writelock);
 }
 
-void find_media(ulmat& similarity,cmat& dataset,dmat& new_centroids){
+void find_media(const ulmat& similarity,const cmat& dataset,dmat& new_centroids){
 	/* This will calculate media between users into one set from similarity */
 	double dchunk = (double)dataset.numRows()/4;
 	uint chunk = ceil(dchunk);
@@ -74,7 +73,7 @@ void find_media(ulmat& similarity,cmat& dataset,dmat& new_centroids){
 				double user_rate_summary = 0.0;
 				for(auto& user_id : similarity.data[cent_id])
 					user_rate_summary += dataset.user_movie_rate(user_id,movie_id);
-				double media = user_rate_summary / similarity.data[cent_id].size();
+				double media = user_rate_summary / (double)similarity.get_set_size(cent_id);
 				double &d = new_centroids.at(cent_id,movie_id);
 				d = media;
 			}
@@ -112,7 +111,7 @@ double eucli_dist(const dmat& old_cent,const dmat& new_cent){
 
 void print_result(const ulmat& similarity){
 	for(uint cent_id=0; cent_id < similarity.numRows(); cent_id++)
-		cout << cent_id << " : " << similarity.data[cent_id].size() << "\n";
+		cout << cent_id << " : " << similarity.get_set_size(cent_id) << "\n";
 }
 
 int main(int argc, char *argv[]){
