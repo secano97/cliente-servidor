@@ -17,11 +17,11 @@ typedef string str;
 template <class T>
 class Matrix {
 private:
+  vector<T> data;
   size_t rows;
   size_t cols;
 
 public:
-  vector<T> data;
   Matrix(size_t r, size_t c) {
     rows = r;
     cols = c-1;
@@ -43,6 +43,10 @@ public:
 
   size_t get_set_size(uint set_id) const {
     return data[set_id].size();
+  }
+
+  const vector<T>& get_cont() const {
+    return data;
   }
 
   void resize(const size_t& new_size){

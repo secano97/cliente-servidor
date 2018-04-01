@@ -46,6 +46,10 @@ public:
     return data[set_id].size();
   }
 
+  const vector<T>& get_cont() const {
+    return data;
+  }
+
   void resize(const size_t& new_size){
     rows = new_size;
     data.resize(new_size);

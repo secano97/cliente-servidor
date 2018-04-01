@@ -28,7 +28,8 @@ void cos_simil(const cmat& dataset,const dmat& centroids,ulmat& similarity){
 				Ai2 += pow(cent_rate,2);
 			}
 
-			for(auto& movie : dataset.data[user_id]) {
+			const vector<cont>& users = dataset.get_cont();
+			for(auto& movie : users[user_id]) {
 				double cent_rate = centroids.at(cent_idx,movie.first);
 				double user_rate = movie.second;
 				Ai_x_Bi += cent_rate * user_rate;
@@ -53,7 +54,8 @@ void find_media(const ulmat& similarity,const cmat& dataset,dmat& new_centroids)
 		if(!similarity.get_set_size(cent_id)) continue;
 		for(uint movie_id=1; movie_id <= new_centroids.numCols(); movie_id++){
 			double user_rate_summary = 0.0;
-			for(auto& user_id : similarity.data[cent_id])
+			const vector<ulist>& users_set = similarity.get_cont();
+			for(auto& user_id : users_set[cent_id])
 				user_rate_summary += (double)dataset.user_movie_rate(user_id,movie_id);
 			double media = user_rate_summary / (double)similarity.get_set_size(cent_id);
 			double &d = new_centroids.at(cent_id,movie_id);
