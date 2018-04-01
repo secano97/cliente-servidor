@@ -18,11 +18,11 @@ typedef string str;
 template <class T>
 class Matrix {
 private:
+  vector<T> data;
   size_t rows;
   size_t cols;
 
 public:
-  vector<T> data;
   Matrix(size_t r, size_t c) {
     rows = r;
     cols = c-1;
