@@ -10,7 +10,7 @@ using dmat = Matrix<double>;
 using ulmat = Matrix<ulist>;
 using cmat = Matrix<cont>;
 
-uint avail_films = 17770+1; 		// movies amount
+uint avail_films = 10+1;//17770+1; 		// movies amount
 uint avail_users = 2649429+1;   // users amount
 uint avail_centroids = 2;	      // centroids amount
 
@@ -23,7 +23,7 @@ void get_cent_norm(const dmat& centroids,vector<double>& cent_norm){
 	#pragma omp parallel shared(centroids,cent_norm,chunk) num_threads(4)
 	{
 
-		#pragma omp for schedule(dynamic,chunk)
+		#pragma omp for schedule(dynamic,chunk) nowait
 		for(uint cent_id=0; cent_id < centroids.numRows(); cent_id++){
 			double value = 0.0;
 			for(uint movie_id=1; movie_id <= centroids.numCols(); movie_id++)
@@ -43,7 +43,7 @@ void get_users_norm(const cmat& dataset,vector<double>& users_norm){
 	const vector<cont>& users = dataset.get_cont();
 	#pragma omp parallel shared(dataset,users_norm,users,chunk) num_threads(4)
 	{
-		#pragma omp for schedule(dynamic,chunk)
+		#pragma omp for schedule(dynamic,chunk) nowait
 		for(uint user_id=0; user_id < dataset.numRows(); user_id++) {
 			double value = 0.0;
 			for(auto& movie : users[user_id])
@@ -56,12 +56,17 @@ void get_users_norm(const cmat& dataset,vector<double>& users_norm){
 
 void cos_simil(const cmat& dataset,const dmat& centroids,ulmat& similarity){
 	/* This will calculate the cosain similarity between centroids and users */
+	vector<double> cent_norm, users_norm;
+	get_cent_norm(centroids,cent_norm);
+	get_users_norm(dataset,users_norm);
+	const vector<cont>& users = dataset.get_cont();
 	double dchunk = (double)dataset.numRows()/4;
 	uint chunk = ceil(dchunk);
 
 	omp_lock_t writelock;
 	omp_init_lock(&writelock);
-	#pragma omp parallel shared(dataset,centroids,similarity,chunk) num_threads(4)
+	#pragma omp parallel shared(dataset,centroids,similarity,cent_norm,users_norm\
+		,users,chunk) num_threads(4)
 	{
 
 		#pragma omp for schedule(dynamic,chunk) nowait
@@ -69,26 +74,19 @@ void cos_simil(const cmat& dataset,const dmat& centroids,ulmat& similarity){
 			uint temp_cent_id = 0;
 			double temp_simil_val = numeric_limits<double>::max();
 
-			for(uint cent_idx = 0; cent_idx < centroids.numRows(); cent_idx++){
-				double Ai_x_Bi = 0.0, Ai2 = 0.0, Bi2 = 0.0;
+			for(uint cent_id = 0; cent_id < centroids.numRows(); cent_id++){
+				double Ai_x_Bi = 0.0;
 
-				for(uint movie_id=1; movie_id <= centroids.numCols(); movie_id++){
-					double cent_rate = centroids.at(cent_idx,movie_id);
-					Ai2 += pow(cent_rate,2);
-				}
-
-				const vector<cont>& users = dataset.get_cont();
 				for(auto& movie : users[user_id]) {
-					double cent_rate = centroids.at(cent_idx,movie.first);
+					double cent_rate = centroids.at(cent_id,movie.first);
 					double user_rate = movie.second;
 					Ai_x_Bi += cent_rate * user_rate;
-					Bi2 += pow(user_rate,2);
 				}
 
-				double similarity_value = Ai_x_Bi/(sqrt(Ai2) * sqrt(Bi2));
+				double similarity_value = Ai_x_Bi/(cent_norm[cent_id] * users_norm[user_id]);
 				if(similarity_value < temp_simil_val){
 					temp_simil_val = similarity_value;
-					temp_cent_id = cent_idx;
+					temp_cent_id = cent_id;
 				}
 			}
 

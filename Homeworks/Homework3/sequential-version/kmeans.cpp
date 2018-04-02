@@ -47,9 +47,9 @@ void get_users_norm(const cmat& dataset,vector<double>& users_norm){
 void cos_simil(const cmat& dataset,const dmat& centroids,ulmat& similarity){
 	/* This will calculate the cosain similarity between centroids and users */
 	vector<double> cent_norm, users_norm;
-
 	get_cent_norm(centroids,cent_norm);
 	get_users_norm(dataset,users_norm);
+	const vector<cont>& users = dataset.get_cont();
 
 	for(uint user_id=0; user_id < dataset.numRows(); user_id++){
 		uint temp_cent_id = 0;
@@ -58,7 +58,6 @@ void cos_simil(const cmat& dataset,const dmat& centroids,ulmat& similarity){
 		for(uint cent_id = 0; cent_id < centroids.numRows(); cent_id++){
 			double Ai_x_Bi = 0.0;
 
-			const vector<cont>& users = dataset.get_cont();
 			for(auto& movie : users[user_id]) {
 				double cent_rate = centroids.at(cent_id,movie.first);
 				double user_rate = movie.second;
