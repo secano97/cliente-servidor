@@ -14,6 +14,46 @@ uint avail_films = 17770+1; 		// movies amount
 uint avail_users = 2649429+1;   // users amount
 uint avail_centroids = 2;	      // centroids amount
 
+void get_cent_norm(const dmat& centroids,vector<double>& cent_norm){
+	/* it will calculate all centroids norm */
+	cent_norm.resize(centroids.numRows());
+	double dchunk = (double)centroids.numRows()/4;
+	uint chunk = ceil(dchunk);
+
+	#pragma omp parallel shared(centroids,cent_norm,chunk) num_threads(4)
+	{
+
+		#pragma omp for schedule(dynamic,chunk)
+		for(uint cent_id=0; cent_id < centroids.numRows(); cent_id++){
+			double value = 0.0;
+			for(uint movie_id=1; movie_id <= centroids.numCols(); movie_id++)
+				value += pow(centroids.at(cent_id,movie_id),2);
+			cent_norm[cent_id] = sqrt(value);
+		}
+	}
+
+}
+
+void get_users_norm(const cmat& dataset,vector<double>& users_norm){
+	/* it will calculate all users norm */
+	users_norm.resize(dataset.numRows());
+	double dchunk = (double)dataset.numRows()/4;
+	uint chunk = ceil(dchunk);
+
+	const vector<cont>& users = dataset.get_cont();
+	#pragma omp parallel shared(dataset,users_norm,users,chunk) num_threads(4)
+	{
+		#pragma omp for schedule(dynamic,chunk)
+		for(uint user_id=0; user_id < dataset.numRows(); user_id++) {
+			double value = 0.0;
+			for(auto& movie : users[user_id])
+				 value += (double)pow(movie.second,2);
+			users_norm[user_id] = sqrt(value);
+		}
+	}
+
+}
+
 void cos_simil(const cmat& dataset,const dmat& centroids,ulmat& similarity){
 	/* This will calculate the cosain similarity between centroids and users */
 	double dchunk = (double)dataset.numRows()/4;
