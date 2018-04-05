@@ -74,7 +74,8 @@ void cos_simil(const cmat& dataset,const dmat& centroids,dmat& new_centroids, ul
 		/* calculating avarage by parts */
 		for(auto& movie : users[user_id]){
 			double& value = new_centroids.at(temp_cent_id,movie.first);
-			value = (movie.second + value) / 2.0;
+			if(!value)  value = movie.second;
+			else value = (movie.second + value) / 2.0;
 		}
 
 		similarity.fill_like_list(temp_cent_id,user_id);
@@ -94,15 +95,18 @@ void find_media(const dmat& centroids,dmat& new_centroids){
 
 double eucli_dist(const dmat& old_cent,const dmat& new_cent){
 	/* This will calculate euclidian distance between two matrix */
-	double val = 0.0;
+	double total = 0.0;
 	for(uint cent_id=0; cent_id<old_cent.numRows(); cent_id++){
+		double val = 0.0;
 		for(uint movie_id=1; movie_id<=old_cent.numCols(); movie_id++){
 			double old_rate = old_cent.at(cent_id,movie_id);
 			double new_rate = new_cent.at(cent_id,movie_id);
 			val += pow((old_rate - new_rate),2);
 		}
+		total += sqrt(val);
 	}
-	return sqrt(val);
+
+	return total;
 }
 
 void print_result(const ulmat& similarity){

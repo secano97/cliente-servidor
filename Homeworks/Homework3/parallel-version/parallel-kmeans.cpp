@@ -93,7 +93,8 @@ void cos_simil(const cmat& dataset,const dmat& centroids,dmat& new_centroids, ul
 			/* calculating avarage by parts */
 			for(auto& movie : users[user_id]){
 				double& value = new_centroids.at(temp_cent_id,movie.first);
-				value = (movie.second + value) / 2.0;
+				if(!value)  value = movie.second;
+				else value = (movie.second + value) / 2.0;
 			}
 
 			omp_set_lock(&writelock);
@@ -125,29 +126,29 @@ void find_media(const dmat& centroids,dmat& new_centroids){
 double eucli_dist(const dmat& old_cent,const dmat& new_cent){
 	/* This will calculate euclidian distance between two matrix */
 	vector<double> thread_values;
-	thread_values.resize(4);
+	thread_values.resize(old_cent.numRows());
 	double dchunk = (double)old_cent.numRows()/4;
 	uint chunk = ceil(dchunk);
 
 	#pragma omp parallel shared(thread_values,old_cent,new_cent,chunk) num_threads(4)
 	{
-		double value = 0.0;
 		#pragma omp for schedule(dynamic,chunk) nowait
 		for(uint cent_id=0; cent_id<old_cent.numRows(); cent_id++){
+			double value = 0.0;
 			for(uint movie_id=1; movie_id<=old_cent.numCols(); movie_id++){
 				double old_rate = old_cent.at(cent_id,movie_id);
 				double new_rate = new_cent.at(cent_id,movie_id);
 				value += pow((old_rate - new_rate),2);
 			}
+			thread_values[cent_id] = sqrt(value);
 		}
-		thread_values[omp_get_thread_num()] = value;
 	}
 
 	double total = 0.0;
 	for(auto& value : thread_values)
 		total += value;
 
-	return sqrt(total);
+	return total/old_cent.numRows();
 }
 
 void print_result(const ulmat& similarity){
