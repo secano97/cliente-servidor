@@ -10,7 +10,7 @@ using dmat = Matrix<double>;
 using ulmat = Matrix<ulist>;
 using cmat = Matrix<cont>;
 
-uint avail_films = 10+1;//17770+1; 		// movies amount
+uint avail_films = 17770+1; 		// movies amount
 uint avail_users = 2649429+1;   // users amount
 uint avail_centroids = 2;	      // centroids amount
 
@@ -54,7 +54,7 @@ void get_users_norm(const cmat& dataset,vector<double>& users_norm){
 
 }
 
-void cos_simil(const cmat& dataset,const dmat& centroids,ulmat& similarity){
+void cos_simil(const cmat& dataset,const dmat& centroids,dmat& new_centroids, ulmat& similarity){
 	/* This will calculate the cosain similarity between centroids and users */
 	vector<double> cent_norm, users_norm;
 	get_cent_norm(centroids,cent_norm);
@@ -72,7 +72,7 @@ void cos_simil(const cmat& dataset,const dmat& centroids,ulmat& similarity){
 		#pragma omp for schedule(dynamic,chunk) nowait
 		for(uint user_id=0; user_id < dataset.numRows(); user_id++){
 			uint temp_cent_id = 0;
-			double temp_simil_val = numeric_limits<double>::max();
+			double temp_simil_val = numeric_limits<double>::min();
 
 			for(uint cent_id = 0; cent_id < centroids.numRows(); cent_id++){
 				double Ai_x_Bi = 0.0;
@@ -83,11 +83,17 @@ void cos_simil(const cmat& dataset,const dmat& centroids,ulmat& similarity){
 					Ai_x_Bi += cent_rate * user_rate;
 				}
 
-				double similarity_value = Ai_x_Bi/(cent_norm[cent_id] * users_norm[user_id]);
-				if(similarity_value < temp_simil_val){
+				double similarity_value = acos( Ai_x_Bi/(cent_norm[cent_id] * users_norm[user_id]) );
+				if(similarity_value > temp_simil_val){
 					temp_simil_val = similarity_value;
 					temp_cent_id = cent_id;
 				}
+			}
+
+			/* calculating avarage by parts */
+			for(auto& movie : users[user_id]){
+				double& value = new_centroids.at(temp_cent_id,movie.first);
+				value = (movie.second + value) / 2.0;
 			}
 
 			omp_set_lock(&writelock);
@@ -98,27 +104,21 @@ void cos_simil(const cmat& dataset,const dmat& centroids,ulmat& similarity){
 	omp_destroy_lock(&writelock);
 }
 
-void find_media(const ulmat& similarity,const cmat& dataset,dmat& new_centroids){
+void find_media(const dmat& centroids,dmat& new_centroids){
 	/* This will calculate media between users into one set from similarity */
-	double dchunk = (double)dataset.numRows()/4;
+	double dchunk = (double)centroids.numRows()/4;
 	uint chunk = ceil(dchunk);
 
-	#pragma omp parallel shared(similarity,dataset,new_centroids,chunk) num_threads(4)
+	#pragma omp parallel shared(centroids,new_centroids,chunk) num_threads(4)
 	{
 
 		#pragma omp for schedule(dynamic,chunk) nowait
-		for(uint cent_id=0 ;cent_id < new_centroids.numRows(); cent_id++){
-			if(!similarity.get_set_size(cent_id)) continue;
-			for(uint movie_id=1; movie_id <= new_centroids.numCols(); movie_id++){
-				double user_rate_summary = 0.0;
-				const vector<ulist>& users_set = similarity.get_cont();
-				for(auto& user_id : users_set[cent_id])
-					user_rate_summary += (double)dataset.user_movie_rate(user_id,movie_id);
-				double media = user_rate_summary / (double)similarity.get_set_size(cent_id);
-				double &d = new_centroids.at(cent_id,movie_id);
-				d = media;
+			for(uint cent_id=0; cent_id < centroids.numRows(); cent_id++){
+				for(uint movie_id=1; movie_id <= centroids.numCols(); movie_id++){
+					double& value = new_centroids.at(cent_id,movie_id);
+					value = ( centroids.at(cent_id,movie_id) + new_centroids.at(cent_id,movie_id) )/ 2.0;
+				}
 			}
-		}
 	}
 }
 
@@ -174,12 +174,12 @@ int main(int argc, char *argv[]){
 	while(true){
 		/* ----------- phase 3 building similarity sets ----------- */
 		Matrix <ulist>similarity(avail_centroids);
-		cos_simil(dataset,centroids,similarity);
+		Matrix <double>new_centroids(avail_centroids,avail_films);
+		cos_simil(dataset,centroids,new_centroids,similarity);
 		//similarity.print_list();
 
-		/* ----------- phase 4 finding new centroids ----------- */
-		Matrix <double>new_centroids(avail_centroids,avail_films);
-		find_media(similarity,dataset,new_centroids);
+		/* ----------- phase 4 find media ----------- */
+		find_media(centroids,new_centroids);
 		//new_centroids.print_num();
 
 		/* ----------- phase 5 euclidian distance between two centroids ----------- */
