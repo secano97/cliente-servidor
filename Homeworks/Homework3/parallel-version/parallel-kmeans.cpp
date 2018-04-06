@@ -12,7 +12,7 @@ using cmat = Matrix<cont>;
 
 uint avail_films = 17770+1; 		// movies amount
 uint avail_users = 2649429+1;   // users amount
-uint avail_centroids = 2;	      // centroids amount
+uint avail_centroids = 5;	      // centroids amount
 
 void get_cent_norm(const dmat& centroids,vector<double>& cent_norm){
 	/* it will calculate all centroids norm */
@@ -54,12 +54,46 @@ void get_users_norm(const cmat& dataset,vector<double>& users_norm){
 
 }
 
+double cent_simil(const dmat& old_centroids,dmat& new_centroids){
+	/* it will calculate cosine similarity between old_cent and new_cent */
+	vector<double> old_cent_norm, new_cent_norm, results;
+	results.resize(old_centroids.numRows());
+	get_cent_norm(old_centroids,old_cent_norm); // vector whit the norm of all old centroids
+	get_cent_norm(new_centroids,new_cent_norm);// vector whit the norm of all new centroids
+	double dchunk = (double)old_centroids.numRows()/4;
+	uint chunk = ceil(dchunk);
+
+	#pragma omp parallel shared(new_centroids,old_centroids,new_cent_norm,\
+		old_cent_norm,results,chunk) num_threads(4)
+	{
+		#pragma omp for schedule(dynamic,chunk) nowait
+		for (uint cent_id = 0; cent_id < old_centroids.numRows(); cent_id++){
+			double Ai_x_Bi = 0.0;
+			for (int movie_id =  0; movie_id < old_centroids.numCols(); movie_id++ ){
+				double old_cent_rate = old_centroids.at(cent_id,movie_id);
+				double new_cent_rate = new_centroids.at(cent_id,movie_id);
+				Ai_x_Bi += old_cent_rate * new_cent_rate;
+			}
+
+			results[cent_id] += acos(Ai_x_Bi/(old_cent_norm[cent_id] * new_cent_norm[cent_id]) );
+		}
+	}
+
+	double similarity_value = 0.0;
+	for(auto& data : results)
+		similarity_value += data;
+
+	double similarity = similarity_value / old_centroids.numRows();
+	return similarity;
+}
+
 void cos_simil(const cmat& dataset,const dmat& centroids,dmat& new_centroids, ulmat& similarity){
 	/* This will calculate the cosain similarity between centroids and users */
 	vector<double> cent_norm, users_norm;
 	get_cent_norm(centroids,cent_norm);
 	get_users_norm(dataset,users_norm);
 	const vector<cont>& users = dataset.get_cont();
+	dmat users_rate(avail_centroids,avail_films);
 	double dchunk = (double)dataset.numRows()/4;
 	uint chunk = ceil(dchunk);
 
@@ -72,7 +106,7 @@ void cos_simil(const cmat& dataset,const dmat& centroids,dmat& new_centroids, ul
 		#pragma omp for schedule(dynamic,chunk) nowait
 		for(uint user_id=0; user_id < dataset.numRows(); user_id++){
 			uint temp_cent_id = 0;
-			double temp_simil_val = numeric_limits<double>::min();
+			double temp_simil_val = numeric_limits<double>::max();
 
 			for(uint cent_id = 0; cent_id < centroids.numRows(); cent_id++){
 				double Ai_x_Bi = 0.0;
@@ -84,74 +118,48 @@ void cos_simil(const cmat& dataset,const dmat& centroids,dmat& new_centroids, ul
 				}
 
 				double similarity_value = acos( Ai_x_Bi/(cent_norm[cent_id] * users_norm[user_id]) );
-				if(similarity_value > temp_simil_val){
+				if(similarity_value < temp_simil_val){
 					temp_simil_val = similarity_value;
 					temp_cent_id = cent_id;
 				}
 			}
 
-			/* calculating avarage by parts */
+			/* ------ users rate summary by parts ------ */
+			omp_set_lock(&writelock);
 			for(auto& movie : users[user_id]){
-				double& value = new_centroids.at(temp_cent_id,movie.first);
-				if(!value)  value = movie.second;
-				else value = (movie.second + value) / 2.0;
+				double& movie_rate = new_centroids.at(temp_cent_id,movie.first);
+				double& users =  users_rate.at(temp_cent_id,movie.first);
+				movie_rate += movie.second;
+				users+=1;
 			}
 
-			omp_set_lock(&writelock);
 			similarity.fill_like_list(temp_cent_id,user_id);
 			omp_unset_lock(&writelock);
 		}
+
 	}
 	omp_destroy_lock(&writelock);
-}
 
-void find_media(const dmat& centroids,dmat& new_centroids){
-	/* This will calculate media between users into one set from similarity */
-	double dchunk = (double)centroids.numRows()/4;
-	uint chunk = ceil(dchunk);
-
-	#pragma omp parallel shared(centroids,new_centroids,chunk) num_threads(4)
+	dchunk = (double)centroids.numRows()/4;
+	chunk = ceil(dchunk);
+	#pragma omp parallel shared(centroids,new_centroids,users_rate,chunk) num_threads(4)
 	{
-
+		/* ------ averaging users rate ------ */
 		#pragma omp for schedule(dynamic,chunk) nowait
-			for(uint cent_id=0; cent_id < centroids.numRows(); cent_id++){
-				for(uint movie_id=1; movie_id <= centroids.numCols(); movie_id++){
-					double& value = new_centroids.at(cent_id,movie_id);
-					value = ( centroids.at(cent_id,movie_id) + new_centroids.at(cent_id,movie_id) )/ 2.0;
-				}
+		for(uint cent_id=0; cent_id< centroids.numRows(); cent_id++ ){
+			for(uint movie_id=1; movie_id<=centroids.numCols(); movie_id++){
+				double& movie_rate = new_centroids.at(cent_id,movie_id);
+				double& users = users_rate.at(cent_id,movie_id);
+				if(!users) continue;
+				movie_rate /= users;
 			}
-	}
-}
-
-double eucli_dist(const dmat& old_cent,const dmat& new_cent){
-	/* This will calculate euclidian distance between two matrix */
-	vector<double> thread_values;
-	thread_values.resize(old_cent.numRows());
-	double dchunk = (double)old_cent.numRows()/4;
-	uint chunk = ceil(dchunk);
-
-	#pragma omp parallel shared(thread_values,old_cent,new_cent,chunk) num_threads(4)
-	{
-		#pragma omp for schedule(dynamic,chunk) nowait
-		for(uint cent_id=0; cent_id<old_cent.numRows(); cent_id++){
-			double value = 0.0;
-			for(uint movie_id=1; movie_id<=old_cent.numCols(); movie_id++){
-				double old_rate = old_cent.at(cent_id,movie_id);
-				double new_rate = new_cent.at(cent_id,movie_id);
-				value += pow((old_rate - new_rate),2);
-			}
-			thread_values[cent_id] = sqrt(value);
 		}
 	}
 
-	double total = 0.0;
-	for(auto& value : thread_values)
-		total += value;
-
-	return total/old_cent.numRows();
 }
 
 void print_result(const ulmat& similarity){
+	/* it will print centroids with theirs nearest users */
 	for(uint cent_id=0; cent_id < similarity.numRows(); cent_id++)
 		cout << cent_id << " : " << similarity.get_set_size(cent_id) << "\n";
 }
@@ -179,14 +187,10 @@ int main(int argc, char *argv[]){
 		cos_simil(dataset,centroids,new_centroids,similarity);
 		//similarity.print_list();
 
-		/* ----------- phase 4 find media ----------- */
-		find_media(centroids,new_centroids);
-		//new_centroids.print_num();
-
-		/* ----------- phase 5 euclidian distance between two centroids ----------- */
-		double eucli_dis_val = eucli_dist(centroids,new_centroids);
-		cout << "Current euclidian distance value = " << eucli_dis_val << "\n";
-		if(eucli_dis_val < 1.0){
+		/* ----------- phase 4 cosine similraty between two centroids ----------- */
+		double similarity_val = cent_simil(centroids,new_centroids);
+		cout << "Current similraty = " << similarity_val<< "\n";
+		if(similarity_val < 0.1){
 			print_result(similarity);
 			break;
 		}
