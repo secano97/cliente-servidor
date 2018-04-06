@@ -49,6 +49,7 @@ void cos_simil(const cmat& dataset,const dmat& centroids,dmat& new_centroids, ul
 	get_cent_norm(centroids,cent_norm);
 	get_users_norm(dataset,users_norm);
 	const vector<cont>& users = dataset.get_cont();
+	dmat users_rate(avail_centroids,avail_films);
 
 	for(uint user_id=0; user_id < dataset.numRows(); user_id++){
 		uint temp_cent_id = 0;
@@ -71,26 +72,26 @@ void cos_simil(const cmat& dataset,const dmat& centroids,dmat& new_centroids, ul
 
 		}
 
-		/* calculating avarage by parts */
+		/* ------ users rate summary by parts ------ */
 		for(auto& movie : users[user_id]){
-			double& value = new_centroids.at(temp_cent_id,movie.first);
-			if(!value)  value = movie.second;
-			else value = (movie.second + value) / 2.0;
+			double& movie_rate = new_centroids.at(temp_cent_id,movie.first);
+			double& users =  users_rate.at(temp_cent_id,movie.first);
+			movie_rate += movie.second;
+			users+=1;
 		}
 
 		similarity.fill_like_list(temp_cent_id,user_id);
 	}
-}
 
-void find_media(const dmat& centroids,dmat& new_centroids){
-	/*  it will find media between two centroids */
-	for(uint cent_id=0; cent_id < centroids.numRows(); cent_id++){
-		for(uint movie_id=1; movie_id <= centroids.numCols(); movie_id++){
-			double& value = new_centroids.at(cent_id,movie_id);
-			value = ( centroids.at(cent_id,movie_id) + new_centroids.at(cent_id,movie_id) )/ 2.0;
+	/* ------ averaging users rate ------ */
+	for(uint cent_id=0; cent_id< centroids.numRows(); cent_id++ ){
+		for(uint movie_id=1; movie_id<=centroids.numCols(); movie_id++){
+			double& movie_rate = new_centroids.at(cent_id,movie_id);
+			double& users = users_rate.at(cent_id,movie_id);
+			if(!users) continue;
+			movie_rate /= users;
 		}
 	}
-
 }
 
 double eucli_dist(const dmat& old_cent,const dmat& new_cent){
@@ -136,10 +137,6 @@ int main(int argc, char *argv[]){
 		Matrix <double>new_centroids(avail_centroids,avail_films);
 		cos_simil(dataset,centroids,new_centroids,similarity);
 		//similarity.print_list();
-
-		/* ----------- phase 4 find media ----------- */
-		find_media(centroids,new_centroids);
-		//new_centroids.print_num();
 
 		/* ----------- phase 5 euclidian distance between two centroids ----------- */
 		double eucli_dis_val = eucli_dist(centroids,new_centroids);
