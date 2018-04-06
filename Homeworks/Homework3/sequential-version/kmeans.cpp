@@ -43,8 +43,31 @@ void get_users_norm(const cmat& dataset,vector<double>& users_norm){
 
 }
 
+double cent_simil(const dmat& old_centroids,dmat& new_centroids){
+	/* it will calculate cosine similarity between old_cent and new_cent */
+	vector<double> old_cent_norm, new_cent_norm;
+
+	get_cent_norm(old_centroids,old_cent_norm); // vector whit the norm of all old centroids
+	get_cent_norm(new_centroids,new_cent_norm);// vector whit the norm of all new centroids
+
+	double similarity_value = 0.0;
+	for (uint cent_id = 0; cent_id < old_centroids.numRows(); cent_id++){
+		double Ai_x_Bi = 0.0;
+		for (int movie_id =  0; movie_id < old_centroids.numCols(); movie_id++ ){
+			double old_cent_rate = old_centroids.at(cent_id,movie_id);
+			double new_cent_rate = new_centroids.at(cent_id,movie_id);
+			Ai_x_Bi += old_cent_rate * new_cent_rate;
+		}
+
+		similarity_value += acos(Ai_x_Bi/(old_cent_norm[cent_id] * new_cent_norm[cent_id]) );
+	}
+
+	double similarity = similarity_value / old_centroids.numRows();
+	return similarity;
+}
+
 void cos_simil(const cmat& dataset,const dmat& centroids,dmat& new_centroids, ulmat& similarity){
-	/* This will calculate the cosain similarity between centroids and users */
+	/* it will calculate the cosain similarity between centroids and users */
 	vector<double> cent_norm, users_norm;
 	get_cent_norm(centroids,cent_norm);
 	get_users_norm(dataset,users_norm);
@@ -53,7 +76,7 @@ void cos_simil(const cmat& dataset,const dmat& centroids,dmat& new_centroids, ul
 
 	for(uint user_id=0; user_id < dataset.numRows(); user_id++){
 		uint temp_cent_id = 0;
-		double temp_simil_val = numeric_limits<double>::min();
+		double temp_simil_val = numeric_limits<double>::max();
 
 		for(uint cent_id = 0; cent_id < centroids.numRows(); cent_id++){
 			double Ai_x_Bi = 0.0;
@@ -65,7 +88,7 @@ void cos_simil(const cmat& dataset,const dmat& centroids,dmat& new_centroids, ul
 			}
 
 			double similarity_value = acos(Ai_x_Bi/(cent_norm[cent_id] * users_norm[user_id]) );
-			if(similarity_value > temp_simil_val){
+			if(similarity_value < temp_simil_val){
 				temp_simil_val = similarity_value;
 				temp_cent_id = cent_id;
 			}
@@ -94,23 +117,8 @@ void cos_simil(const cmat& dataset,const dmat& centroids,dmat& new_centroids, ul
 	}
 }
 
-double eucli_dist(const dmat& old_cent,const dmat& new_cent){
-	/* This will calculate euclidian distance between two matrix */
-	double total = 0.0;
-	for(uint cent_id=0; cent_id<old_cent.numRows(); cent_id++){
-		double val = 0.0;
-		for(uint movie_id=1; movie_id<=old_cent.numCols(); movie_id++){
-			double old_rate = old_cent.at(cent_id,movie_id);
-			double new_rate = new_cent.at(cent_id,movie_id);
-			val += pow((old_rate - new_rate),2);
-		}
-		total += sqrt(val);
-	}
-
-	return total;
-}
-
 void print_result(const ulmat& similarity){
+	/* it will print centroids with theirs nearest users */
 	for(uint cent_id=0; cent_id < similarity.numRows(); cent_id++)
 		cout << cent_id << " : " << similarity.get_set_size(cent_id) << "\n";
 }
@@ -138,10 +146,10 @@ int main(int argc, char *argv[]){
 		cos_simil(dataset,centroids,new_centroids,similarity);
 		//similarity.print_list();
 
-		/* ----------- phase 5 euclidian distance between two centroids ----------- */
-		double eucli_dis_val = eucli_dist(centroids,new_centroids);
-		cout << "Current euclidian distance value = " << eucli_dis_val << "\n";
-		if(eucli_dis_val < 1.0){
+		/* ----------- phase 4 cosine similraty between two centroids ----------- */
+		double similarity_val = cent_simil(centroids,new_centroids);
+		cout << "Current similraty = " << similarity_val<< "\n";
+		if(similarity_val < 0.1){
 			print_result(similarity);
 			break;
 		}
