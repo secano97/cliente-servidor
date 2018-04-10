@@ -12,7 +12,7 @@ using cmat = Matrix<cont>;
 
 uint avail_films = 17770+1;			// movies amount
 uint avail_users = 2649429+1;   // users amount
-uint avail_centroids = 5;	      // centroids amount
+uint avail_centroids = 100;	      // centroids amount
 
 void get_cent_norm(const dmat& centroids,vector<double>& cent_norm){
 	/* it will calculate all centroids norm */
