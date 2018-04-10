@@ -12,7 +12,8 @@ using cmat = Matrix<cont>;
 
 uint avail_films = 17770+1; 		// movies amount
 uint avail_users = 2649429+1;   // users amount
-uint avail_centroids = 5;	      // centroids amount
+uint avail_centroids = 100;	      // centroids amount
+uint rate_change = 1;
 
 void get_cent_norm(const dmat& centroids,vector<double>& cent_norm){
 	/* it will calculate all centroids norm */
@@ -88,10 +89,9 @@ double cent_simil(const dmat& old_centroids,dmat& new_centroids){
 }
 
 void cos_simil(const cmat& dataset,const dmat& centroids,dmat& new_centroids, \
-							ulmat& similarity,vector<double>& users_norm){
+							ulmat& similarity,vector<double>& users_norm,vector<double>& \
+							cent_norm){
 	/* This will calculate the cosain similarity between centroids and users */
-	vector<double> cent_norm;
-	get_cent_norm(centroids,cent_norm);
 	const vector<cont>& users = dataset.get_cont();
 	dmat users_rate(avail_centroids,avail_films);
 	double dchunk = (double)dataset.numRows()/4;
@@ -160,6 +160,92 @@ void cos_simil(const cmat& dataset,const dmat& centroids,dmat& new_centroids, \
 
 }
 
+// void generate_cent(dmat& centroids,vector<double>& cent_norm,uint cent_id){
+// 	/* it will generate a new centroid values */
+// 	random_device rd;
+// 	mt19937 gen(rd());
+// 	uniform_real_distribution<> dis(1.0, 5.0);
+// 	double norm = 0.0;
+// 	for (uint movie_id = 0; movie_id < centroids.numCols(); movie_id++) {
+// 		double& rate = centroids.at(cent_id,movie_id);
+// 		rate = dis(gen);
+// 		norm += pow(rate,2);
+// 	}
+// 	cent_norm[cent_id] = sqrt(norm);
+//
+// }
+
+void modify_cent(uint current_cent_id,dmat& centroids, vector<double>& \
+								cent_norm,const ulmat& similarity){
+	/* it will modify a given centroid slightly */
+	uint upper_cent_id = 0, upper_cent_size = numeric_limits<double>::min();
+	const vector<ulist>& users_set = similarity.get_cont();
+
+	for(uint cent_id=0; cent_id< similarity.numRows(); cent_id++) {
+		size_t set_size = users_set[cent_id].size();
+		if(set_size > upper_cent_size) {
+			upper_cent_size = set_size;
+			upper_cent_id = cent_id;
+		}
+	}
+
+	uint val = 0.0;
+	for(uint movie_id=0; movie_id < centroids.numCols(); movie_id++){
+		srand(time(0));
+		uint let_change = rand()%(11);
+		if(let_change){
+			double movie_rate = centroids.at(upper_cent_id,movie_id);
+			double last_rate = movie_rate;
+			movie_rate += rate_change;
+			if(movie_rate > 5.0){
+				movie_rate = last_rate;
+				movie_rate -= rate_change;
+			}
+			double& origin_movie_rate = centroids.at(current_cent_id,movie_id);
+			origin_movie_rate = movie_rate;
+			val += pow(movie_rate,2);
+		}
+		else{
+			double movie_rate = centroids.at(upper_cent_id,movie_id);
+			double& origin_movie_rate = centroids.at(current_cent_id,movie_id);
+			origin_movie_rate = movie_rate;
+			val += pow(movie_rate,2);
+		}
+	}
+	cent_norm[current_cent_id] = sqrt(val);
+	cout << cent_norm[current_cent_id] << endl;
+
+}
+
+void check_and_repl_cent(const cmat& dataset,dmat& centroids,vector<double>& \
+											cent_norm,const ulmat& similarity){
+	/* it will check if exist an empty centroid, then raplaced it with an user */
+	for(uint cent_id=0; cent_id < centroids.numRows() ; cent_id++) {
+		if(!cent_norm[cent_id]) {
+
+			/* --- option I take an existing user like new centroid --- */
+			//srand(time(0));
+			//uint new_cent_id = rand(0,dataset.numRows()+1);
+			// uint randUser = rand()%((dataset.numRows() + 1) + 1);
+			// cout << "rand user num = " << randUser  << '\n';
+			// const vector<cont>& users = dataset.get_cont();
+			// double norm = 0.0;
+			// for(auto& movie : users[randUser]) {
+			// 	double& movie_rate = centroids.at(cent_id,movie.first);
+			// 	double rate =  movie.second;
+			// cent_norm[cent_id] = sqrt(norm);
+
+			/* --- option II generate the new centroid --- */
+			// generate_cent(centroids,cent_norm,cent_id);
+
+			/* --- option III take an existing centroid and modify it slightly --- */
+			modify_cent(cent_id,centroids,cent_norm,similarity);
+
+		}
+	}
+
+}
+
 void print_result(const ulmat& similarity){
 	/* it will print centroids with theirs nearest users */
 	for(uint cent_id=0; cent_id < similarity.numRows(); cent_id++)
@@ -174,13 +260,14 @@ int main(int argc, char *argv[]){
 	/* ----------- phase 1 loading info into memory ----------- */
 	Matrix <cont>dataset;
 	load_data(argv[1],avail_users,dataset);
-	vector<double> users_norm;
+	vector<double> users_norm, cent_norm;
 	get_users_norm(dataset,users_norm);
 	// dataset.print_dic();
 
 	/* ----------- phase 2 building initial centroids ----------- */
 	Matrix <double>centroids(avail_centroids, avail_films);
 	centroids.fill_like_num();
+	get_cent_norm(centroids,cent_norm);
 	//centroids.print_num();
 
 	Timer timer;
@@ -188,10 +275,12 @@ int main(int argc, char *argv[]){
 		/* ----------- phase 3 building similarity sets ----------- */
 		Matrix <ulist>similarity(avail_centroids);
 		Matrix <double>new_centroids(avail_centroids,avail_films);
-		cos_simil(dataset,centroids,new_centroids,similarity,users_norm);
+		cos_simil(dataset,centroids,new_centroids,similarity,users_norm,cent_norm);
 		//similarity.print_list();
 
 		/* ----------- phase 4 cosine similraty between two centroids ----------- */
+		get_cent_norm(new_centroids,cent_norm);
+		check_and_repl_cent(dataset,new_centroids,cent_norm,similarity);
 		double similarity_val = cent_simil(centroids,new_centroids);
 		cout << "Current similarity = " << similarity_val << "\n";
 		if(similarity_val < 0.1){
