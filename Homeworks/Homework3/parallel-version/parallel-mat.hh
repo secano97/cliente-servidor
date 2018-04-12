@@ -65,6 +65,24 @@ public:
     data[cent_id].push_front(user_id);
   }
 
+  uint get_rand_item_id(uint list_idx) {
+    /* it will get and delete a random item id from the given list idx */
+    srand(time(NULL));
+    uint rand_item_idx = rand()%data[list_idx].size();
+    uint temp_item_idx = 0;
+    uint sel_item_id = 0;
+    for(auto it = data[list_idx].begin(); it != data[list_idx].end();) {
+      if(temp_item_idx == rand_item_idx) {
+        sel_item_id = *it;
+        it = data[list_idx].erase(it);
+        break;
+      }
+      it++;
+      temp_item_idx ++;
+    }
+    return sel_item_id;
+  }
+
   void print_list(){
     /* This function will print vector list content */
     uint set_id = 0;
