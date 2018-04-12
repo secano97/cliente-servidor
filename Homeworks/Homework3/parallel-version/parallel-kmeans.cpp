@@ -161,12 +161,12 @@ void cos_simil(const cmat& dataset,const dmat& centroids,dmat& new_centroids, \
 }
 
 void modify_cent(uint current_cent_id,const cmat& dataset,dmat& centroids, \
-	vector<double>& cent_norm,const ulmat& similarity){
+	vector<double>& cent_norm,ulmat& similarity){
 	/* it will modify a given centroid slightly */
-	uint upper_cent_id = 0, upper_cent_size = numeric_limits<double>::min();
+	uint upper_cent_id = 0, upper_cent_size = 0;
 	const vector<ulist>& users_set = similarity.get_cont();
 
-	// ----- finding an user into centroids users set with more users -----
+	// ----- finding a centroid with the greater users set than others -----
 	for(uint cent_id=0; cent_id< similarity.numRows(); cent_id++) {
 		size_t set_size = users_set[cent_id].size();
 		if(set_size > upper_cent_size) {
@@ -175,23 +175,13 @@ void modify_cent(uint current_cent_id,const cmat& dataset,dmat& centroids, \
 		}
 	}
 
-	// ----- finding user id into similarity set -----
-	srand(time(0));
-	uint rand_user_idx = rand()%(users_set[upper_cent_id].size());
-	uint temp_user_idx = 0;
-	uint sel_user_id = 0;
-	for(auto& user_id : users_set[upper_cent_id]){
-		if(temp_user_idx == rand_user_idx){
-			sel_user_id = user_id;
-			break;
-		}
-		temp_user_idx ++;
-	}
+	// ----- selecting an user from the greater users set -----
+	uint sel_user_id = similarity.get_rand_item_id(upper_cent_id);
 
+	// ----- passing data between selected user as new centroid -----
 	double norm = 0.0;
 	const vector<cont>& users = dataset.get_cont();
 
-	// ----- passing data between selected user as new centroid -----
 	for(auto& movie : users[sel_user_id]) {
 		 double& movie_rate = centroids.at(current_cent_id,movie.first);
 		 double rate =  movie.second;
@@ -204,29 +194,11 @@ void modify_cent(uint current_cent_id,const cmat& dataset,dmat& centroids, \
 }
 
 void check_empt_cent(const cmat& dataset,dmat& centroids,vector<double>& \
-											cent_norm,const ulmat& similarity){
+											cent_norm,ulmat& similarity){
 	/* it will check if exist an empty centroid, then raplaced it with modify cent */
 	for(uint cent_id=0; cent_id < centroids.numRows() ; cent_id++) {
-		if(!cent_norm[cent_id]) {
-
-			/* --- option I take an existing user like new centroid --- */
-			//srand(time(0));
-			//uint new_cent_id = rand(0,dataset.numRows()+1);
-			// uint randUser = rand()%((dataset.numRows() + 1) + 1);
-			// cout << "rand user num = " << randUser  << '\n';
-			// const vector<cont>& users = dataset.get_cont();
-			// double norm = 0.0;
-			// for(auto& movie : users[randUser]) {
-			// 	double& movie_rate = centroids.at(cent_id,movie.first);
-			// 	double rate =  movie.second;
-			// cent_norm[cent_id] = sqrt(norm);
-
-			/* --- option II generate the new centroid --- */
-			// generate_cent(centroids,cent_norm,cent_id);
-
-			/* --- option III take an existing centroid and modify it slightly --- */
+		if(!cent_norm[cent_id])
 			modify_cent(cent_id,dataset,centroids,cent_norm,similarity);
-		}
 	}
 
 }
