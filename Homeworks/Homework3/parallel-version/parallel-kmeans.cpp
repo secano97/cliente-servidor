@@ -55,14 +55,16 @@ void get_users_norm(const cmat& dataset,vector<double>& users_norm){
 
 }
 
-double cent_simil(const dmat& old_centroids,dmat& new_centroids){
+double cent_simil(const dmat& old_centroids,const dmat& new_centroids, \
+									const ulmat& similarity){
 	/* it will calculate cosine similarity between old_cent and new_cent */
 	vector<double> results;
 	results.resize(old_centroids.numRows());
 	double dchunk = (double)old_centroids.numRows()/4;
 	uint chunk = ceil(dchunk);
+	const vector<ulist>& users_set = similarity.get_cont();
 
-	#pragma omp parallel shared(old_centroids,new_centroids,results,chunk) \
+	#pragma omp parallel shared(old_centroids,new_centroids,results,users_set,chunk) \
 												num_threads(4)
 	{
 		#pragma omp for schedule(dynamic,chunk) nowait
@@ -76,16 +78,19 @@ double cent_simil(const dmat& old_centroids,dmat& new_centroids){
 				Ai_x_Bi += old_cent_rate * new_cent_rate;
 			}
 
-			results[cent_id] += acos(Ai_x_Bi/(sqrt(val1) * sqrt(val2)) );
+			uint users_quantity = users_set[cent_id].size();
+			double angle = acos(Ai_x_Bi/(sqrt(val1) * sqrt(val2))), error = 0.0;
+			if(users_quantity)
+				error = angle/(double)users_quantity;
+			results[cent_id] += error;
 		}
 	}
 
-	double similarity_value = 0.0;
+	double similarity_val = 0.0;
 	for(auto& data : results)
-		similarity_value += data;
+		similarity_val += data;
 
-	double similarity = similarity_value / old_centroids.numRows();
-	return similarity;
+	return similarity_val;
 }
 
 void cos_simil(const cmat& dataset,const dmat& centroids,dmat& new_centroids, \
@@ -238,9 +243,9 @@ int main(int argc, char *argv[]){
 		/* ----------- phase 4 cosine similraty between two centroids ----------- */
 		get_cent_norm(new_centroids,cent_norm);
 		check_empt_cent(dataset,new_centroids,cent_norm,similarity);
-		double similarity_val = cent_simil(centroids,new_centroids);
+		double similarity_val = cent_simil(centroids,new_centroids,similarity);
 		cout << "Current similarity = " << similarity_val << "\n";
-		if(similarity_val < 0.1){
+		if(similarity_val < 0.01){
 			print_result(similarity);
 			break;
 		}
