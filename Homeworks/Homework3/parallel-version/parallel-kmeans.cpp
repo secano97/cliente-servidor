@@ -299,19 +299,22 @@ int main(int argc, char *argv[]){
 		current_error++;
 		if(current_error > errors.size()-1)
 			current_error = 0;
-		if(iteration > errors.size()-1) {
+		cout << "---------------------------------------------------------" << endl;
+		if(iteration >= errors.size()) {
 			double standar_desviation_val = standar_desviation(errors);
-			cout << "Standar desviation = " << standar_desviation_val << endl << endl;
+			cout << "Standar desviation = " << standar_desviation_val << endl;
 			if(standar_desviation_val < 0.01){
 				print_result(similarity);
 				break;
 			}
 		}
-		cout << "Current similarity = " << similarity_val << endl;
+		cout << "Current similarity = " << similarity_val << endl<< endl;
 		if(similarity_val < 0.01) {
 			print_result(similarity);
 			break;
 		}
+		cout << "---------------------------------------------------------" << endl\
+				<< endl;
 		centroids = move(new_centroids);
 		iteration++;
 	}
