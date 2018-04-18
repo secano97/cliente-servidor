@@ -12,6 +12,7 @@ using ulmat = Matrix<ulist>;
 uint avail_films = 17770+1; 		// movies amount
 uint avail_users = 2649429+1;   // users amount
 uint avail_centroids = 100;	    // centroids amount
+uint variance_range = 5;				// variance range
 
 void get_cent_norm(const dmat& centroids,vector<double>& cent_norm){
 	/* it will calculate all centroids norm */
@@ -237,6 +238,20 @@ void check_empt_cent(const mat& dataset,dmat& centroids,vector<double>& \
 
 }
 
+double standar_desviation(vector<double>& errors) {
+	/* it will calculate variance */
+	double X = 0.0;
+	for(auto& error : errors)
+		X += error;
+	X /= errors.size();
+
+	double summary = 0.0;
+	for(auto& xi : errors)
+		summary += pow( (xi - X),2);
+
+	return sqrt(summary/errors.size());
+}
+
 void print_result(const ulmat& similarity){
 	/* it will print centroids with theirs nearest users */
 	for(uint cent_id=0; cent_id < similarity.numRows(); cent_id++)
@@ -264,6 +279,10 @@ int main(int argc, char *argv[]){
 	get_cent_norm(centroids,cent_norm);
 	//centroids.print_num();
 
+	vector<double> errors;
+	errors.resize(variance_range);
+	uint current_error = 0, iteration = 1;
+
 	Timer timer;
 	while(true){
 		/* ----------- phase 3 building similarity sets ----------- */
@@ -276,12 +295,25 @@ int main(int argc, char *argv[]){
 		get_cent_norm(new_centroids,cent_norm);
 		check_empt_cent(dataset,new_centroids,cent_norm,similarity);
 		double similarity_val = cent_simil(centroids,new_centroids,similarity);
-		cout << "Current similarity = " << similarity_val << "\n";
+		errors[current_error] = similarity_val;
+		current_error++;
+		if(current_error > errors.size()-1)
+			current_error = 0;
+		if(iteration > errors.size()-1) {
+			double standar_desviation_val = standar_desviation(errors);
+			cout << "Standar desviation = " << standar_desviation_val << endl << endl;
+			if(standar_desviation_val < 0.01){
+				print_result(similarity);
+				break;
+			}
+		}
+		cout << "Current similarity = " << similarity_val << endl;
 		if(similarity_val < 0.01) {
 			print_result(similarity);
 			break;
 		}
 		centroids = move(new_centroids);
+		iteration++;
 	}
 	cout << "Transcurred seconds = " <<	(double)timer.elapsed()/1000 << endl;
 
