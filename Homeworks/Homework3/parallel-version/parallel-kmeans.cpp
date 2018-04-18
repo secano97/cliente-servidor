@@ -74,10 +74,8 @@ double cent_simil(const dmat& old_centroids,const dmat& new_centroids, \
 				Ai_x_Bi += old_cent_rate * new_cent_rate;
 			}
 
-			uint users_quantity = users_set[cent_id].size();
-			double angle = acos(Ai_x_Bi/(sqrt(val1) * sqrt(val2))), error = 0.0;
-			error = angle/(double)users_quantity;
-			results[cent_id] = error;
+			double angle = acos(Ai_x_Bi/(sqrt(val1) * sqrt(val2)));
+			results[cent_id] = angle;;
 		}
 	}
 
@@ -85,7 +83,7 @@ double cent_simil(const dmat& old_centroids,const dmat& new_centroids, \
 	for(auto& data : results)
 		similarity_val += data;
 
-	return similarity_val;
+	return similarity_val/old_centroids.numRows();
 }
 
 void cos_simil(const mat& dataset,const dmat& centroids,dmat& new_centroids, \
@@ -160,46 +158,82 @@ void cos_simil(const mat& dataset,const dmat& centroids,dmat& new_centroids, \
 
 }
 
-void modify_cent(uint current_cent_id,const mat& dataset,dmat& centroids, \
-	vector<double>& cent_norm,ulmat& similarity){
-	/* it will modify a given centroid slightly */
-	uint upper_cent_id = 0, upper_cent_size = 0;
-	const vector<ulist>& users_set = similarity.get_cont();
+// void modify_cent(uint current_cent_id,const mat& dataset,dmat& centroids, \
+// 	vector<double>& cent_norm,ulmat& similarity){
+// 	/* it will modify a given centroid slightly */
+// 	uint upper_cent_id = 0, upper_cent_size = 0;
+// 	const vector<ulist>& users_set = similarity.get_cont();
+//
+// 	// ----- finding a centroid with the greater users set than others -----
+// 	for(uint cent_id=0; cent_id< centroids.numRows(); cent_id++) {
+// 		size_t set_size = users_set[cent_id].size();
+// 		if(set_size > upper_cent_size) {
+// 			upper_cent_size = set_size;
+// 			upper_cent_id = cent_id;
+// 		}
+// 	}
+//
+// 	// ----- selecting an user from the greater users set -----
+// 	uint sel_user_id = similarity.get_rand_item_id(upper_cent_id);
+//
+// 	// ----- passing data between selected user as new centroid -----
+// 	double value = 0.0;
+// 	const vector<cont>& users = dataset.get_cont();
+//
+// 	for(auto& movie : users[sel_user_id]) {
+// 		 double& movie_rate = centroids.at(current_cent_id,movie.first);
+// 		 double rate =  movie.second;
+// 		 movie_rate = rate;
+// 		 value += pow(rate,2);
+// 	}
+//
+//  	cent_norm[current_cent_id] = sqrt(value);
+// 	similarity.fill_like_list(current_cent_id,sel_user_id);
+// }
+
+void modify_cent(uint current_cent_id, dmat& centroids,vector<double>& \
+								cent_norm, ulmat& similarity){
+	/* it will modify a centroid slightly */
 
 	// ----- finding a centroid with the greater users set than others -----
+	uint sel_cent_id = 0, cent_size = 0;
+	const vector<ulist>& users_set = similarity.get_cont();
+
 	for(uint cent_id=0; cent_id< centroids.numRows(); cent_id++) {
 		size_t set_size = users_set[cent_id].size();
-		if(set_size > upper_cent_size) {
-			upper_cent_size = set_size;
-			upper_cent_id = cent_id;
+		if(set_size > cent_size) {
+			cent_size = set_size;
+			sel_cent_id = cent_id;
 		}
 	}
 
 	// ----- selecting an user from the greater users set -----
-	uint sel_user_id = similarity.get_rand_item_id(upper_cent_id);
-
-	// ----- passing data between selected user as new centroid -----
+	uint sel_user_id = similarity.get_rand_item_id(sel_cent_id);
 	double value = 0.0;
-	const vector<cont>& users = dataset.get_cont();
 
-	for(auto& movie : users[sel_user_id]) {
-		 double& movie_rate = centroids.at(current_cent_id,movie.first);
-		 double rate =  movie.second;
-		 movie_rate = rate;
-		 value += pow(rate,2);
+	for(uint movie_id=1; movie_id <= centroids.numCols(); movie_id++) {
+		double movie_rate = centroids.at(sel_cent_id,movie_id);
+		double temp_movie_rate = movie_rate;
+		movie_rate += 0.5;
+		if(movie_rate > 5.0){
+			movie_rate = temp_movie_rate;
+			movie_rate -= 0.5;
+		}
+		double& old_movie_rate = centroids.at(current_cent_id,movie_id);
+		old_movie_rate = movie_rate;
+		value += pow(movie_rate,2);
 	}
 
- 	cent_norm[current_cent_id] = sqrt(value);
+	cent_norm[current_cent_id] = sqrt(value);
 	similarity.fill_like_list(current_cent_id,sel_user_id);
 }
 
 void check_empt_cent(const mat& dataset,dmat& centroids,vector<double>& \
 											cent_norm,ulmat& similarity){
 	/* it will check if exist an empty centroid, then raplaced it with modify cent */
-	for(uint cent_id=0; cent_id < centroids.numRows() ; cent_id++) {
+	for(uint cent_id=0; cent_id < centroids.numRows() ; cent_id++)
 		if(!cent_norm[cent_id])
-			modify_cent(cent_id,dataset,centroids,cent_norm,similarity);
-	}
+			modify_cent(cent_id/*,dataset*/,centroids,cent_norm,similarity);
 
 }
 
@@ -243,7 +277,7 @@ int main(int argc, char *argv[]){
 		check_empt_cent(dataset,new_centroids,cent_norm,similarity);
 		double similarity_val = cent_simil(centroids,new_centroids,similarity);
 		cout << "Current similarity = " << similarity_val << "\n";
-		if(similarity_val < 0.01){
+		if(similarity_val < 0.01) {
 			print_result(similarity);
 			break;
 		}
