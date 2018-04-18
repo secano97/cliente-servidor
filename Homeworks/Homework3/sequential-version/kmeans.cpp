@@ -8,11 +8,10 @@
 using namespace std;
 using dmat = Matrix<double>;
 using ulmat = Matrix<ulist>;
-using cmat = Matrix<cont>;
 
 uint avail_films = 17770+1;			// movies amount
 uint avail_users = 2649429+1;   // users amount
-uint avail_centroids = 100;	      // centroids amount
+uint avail_centroids = 100;	    // centroids amount
 
 void get_cent_norm(const dmat& centroids,vector<double>& cent_norm){
 	/* it will calculate all centroids norm */
@@ -27,7 +26,7 @@ void get_cent_norm(const dmat& centroids,vector<double>& cent_norm){
 
 }
 
-void get_users_norm(const cmat& dataset,vector<double>& users_norm){
+void get_users_norm(const mat& dataset,vector<double>& users_norm){
 	/* it will calculate all users norm */
 	users_norm.resize(dataset.numRows());
 	uint user_id = 0;
@@ -64,7 +63,7 @@ double cent_simil(const dmat& old_centroids,dmat& new_centroids){
 	return similarity;
 }
 
-void cos_simil(const cmat& dataset,const dmat& centroids,dmat& new_centroids,\
+void cos_simil(const mat& dataset,const dmat& centroids,dmat& new_centroids,\
 							ulmat& similarity,vector<double>& users_norm){
 	/* it will calculate the cosain similarity between centroids and users */
 	vector<double> cent_norm;
@@ -128,22 +127,23 @@ int main(int argc, char *argv[]){
 		return -1;
 	}
 	/* ----------- phase 1 loading info into memory ----------- */
-	Matrix <cont>dataset;
+	mat dataset;
 	load_data(argv[1],avail_users,dataset);
-	vector<double> users_norm;
-	get_users_norm(dataset,users_norm);
 	// dataset.print_dic();
 
+	vector<double> users_norm;
+	get_users_norm(dataset,users_norm);
+
 	/* ----------- phase 2 building initial centroids ----------- */
-	Matrix <double>centroids(avail_centroids, avail_films);
+	dmat centroids(avail_centroids, avail_films);
 	centroids.fill_like_num();
 	//centroids.print_num();
 
 	Timer timer;
 	while(true){
 		/* ----------- phase 3 building similarity sets ----------- */
-		Matrix <ulist>similarity(avail_centroids);
-		Matrix <double>new_centroids(avail_centroids,avail_films);
+		ulmat similarity(avail_centroids);
+		dmat new_centroids(avail_centroids,avail_films);
 		cos_simil(dataset,centroids,new_centroids,similarity,users_norm);
 		//similarity.print_list();
 
