@@ -8,16 +8,13 @@
 using namespace std;
 using dmat = Matrix<double>;
 using ulmat = Matrix<ulist>;
-using cmat = Matrix<cont>;
 
 uint avail_films = 17770+1; 		// movies amount
 uint avail_users = 2649429+1;   // users amount
-uint avail_centroids = 100;	      // centroids amount
-uint rate_change = 1;
+uint avail_centroids = 100;	    // centroids amount
 
 void get_cent_norm(const dmat& centroids,vector<double>& cent_norm){
 	/* it will calculate all centroids norm */
-	cent_norm.resize(centroids.numRows());
 	double dchunk = (double)centroids.numRows()/4;
 	uint chunk = ceil(dchunk);
 
@@ -35,9 +32,8 @@ void get_cent_norm(const dmat& centroids,vector<double>& cent_norm){
 
 }
 
-void get_users_norm(const cmat& dataset,vector<double>& users_norm){
+void get_users_norm(const mat& dataset,vector<double>& users_norm){
 	/* it will calculate all users norm */
-	users_norm.resize(dataset.numRows());
 	double dchunk = (double)dataset.numRows()/4;
 	uint chunk = ceil(dchunk);
 
@@ -80,9 +76,8 @@ double cent_simil(const dmat& old_centroids,const dmat& new_centroids, \
 
 			uint users_quantity = users_set[cent_id].size();
 			double angle = acos(Ai_x_Bi/(sqrt(val1) * sqrt(val2))), error = 0.0;
-			if(users_quantity)
-				error = angle/(double)users_quantity;
-			results[cent_id] += error;
+			error = angle/(double)users_quantity;
+			results[cent_id] = error;
 		}
 	}
 
@@ -93,7 +88,7 @@ double cent_simil(const dmat& old_centroids,const dmat& new_centroids, \
 	return similarity_val;
 }
 
-void cos_simil(const cmat& dataset,const dmat& centroids,dmat& new_centroids, \
+void cos_simil(const mat& dataset,const dmat& centroids,dmat& new_centroids, \
 							ulmat& similarity,vector<double>& users_norm,vector<double>& \
 							cent_norm){
 	/* This will calculate the cosain similarity between centroids and users */
@@ -104,8 +99,8 @@ void cos_simil(const cmat& dataset,const dmat& centroids,dmat& new_centroids, \
 
 	omp_lock_t writelock;
 	omp_init_lock(&writelock);
-	#pragma omp parallel shared(dataset,centroids,similarity,cent_norm,users_norm\
-		,users,chunk) num_threads(4)
+	#pragma omp parallel shared(dataset,centroids,new_centroids,similarity,\
+		cent_norm,users_norm,users,users_rate,chunk) num_threads(4)
 	{
 
 		#pragma omp for schedule(dynamic,chunk) nowait
@@ -165,14 +160,14 @@ void cos_simil(const cmat& dataset,const dmat& centroids,dmat& new_centroids, \
 
 }
 
-void modify_cent(uint current_cent_id,const cmat& dataset,dmat& centroids, \
+void modify_cent(uint current_cent_id,const mat& dataset,dmat& centroids, \
 	vector<double>& cent_norm,ulmat& similarity){
 	/* it will modify a given centroid slightly */
 	uint upper_cent_id = 0, upper_cent_size = 0;
 	const vector<ulist>& users_set = similarity.get_cont();
 
 	// ----- finding a centroid with the greater users set than others -----
-	for(uint cent_id=0; cent_id< similarity.numRows(); cent_id++) {
+	for(uint cent_id=0; cent_id< centroids.numRows(); cent_id++) {
 		size_t set_size = users_set[cent_id].size();
 		if(set_size > upper_cent_size) {
 			upper_cent_size = set_size;
@@ -184,21 +179,21 @@ void modify_cent(uint current_cent_id,const cmat& dataset,dmat& centroids, \
 	uint sel_user_id = similarity.get_rand_item_id(upper_cent_id);
 
 	// ----- passing data between selected user as new centroid -----
-	double norm = 0.0;
+	double value = 0.0;
 	const vector<cont>& users = dataset.get_cont();
 
 	for(auto& movie : users[sel_user_id]) {
 		 double& movie_rate = centroids.at(current_cent_id,movie.first);
 		 double rate =  movie.second;
 		 movie_rate = rate;
-		 norm += pow(rate,2);
+		 value += pow(rate,2);
 	}
 
- 	cent_norm[current_cent_id] = sqrt(norm);
-
+ 	cent_norm[current_cent_id] = sqrt(value);
+	similarity.fill_like_list(current_cent_id,sel_user_id);
 }
 
-void check_empt_cent(const cmat& dataset,dmat& centroids,vector<double>& \
+void check_empt_cent(const mat& dataset,dmat& centroids,vector<double>& \
 											cent_norm,ulmat& similarity){
 	/* it will check if exist an empty centroid, then raplaced it with modify cent */
 	for(uint cent_id=0; cent_id < centroids.numRows() ; cent_id++) {
@@ -220,14 +215,17 @@ int main(int argc, char *argv[]){
 		return -1;
 	}
 	/* ----------- phase 1 loading info into memory ----------- */
-	Matrix <cont>dataset;
+	mat dataset;
 	load_data(argv[1],avail_users,dataset);
-	vector<double> users_norm, cent_norm;
-	get_users_norm(dataset,users_norm);
 	// dataset.print_dic();
 
+	vector<double> users_norm, cent_norm;
+	cent_norm.resize(avail_centroids);
+	users_norm.resize(dataset.numRows());
+	get_users_norm(dataset,users_norm);
+
 	/* ----------- phase 2 building initial centroids ----------- */
-	Matrix <double>centroids(avail_centroids, avail_films);
+	dmat centroids(avail_centroids, avail_films);
 	centroids.fill_like_num();
 	get_cent_norm(centroids,cent_norm);
 	//centroids.print_num();
@@ -235,8 +233,8 @@ int main(int argc, char *argv[]){
 	Timer timer;
 	while(true){
 		/* ----------- phase 3 building similarity sets ----------- */
-		Matrix <ulist>similarity(avail_centroids);
-		Matrix <double>new_centroids(avail_centroids,avail_films);
+		ulmat similarity(avail_centroids);
+		dmat new_centroids(avail_centroids,avail_films);
 		cos_simil(dataset,centroids,new_centroids,similarity,users_norm,cent_norm);
 		//similarity.print_list();
 
