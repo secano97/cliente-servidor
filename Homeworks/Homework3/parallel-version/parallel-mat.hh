@@ -55,10 +55,6 @@ public:
     data.resize(new_size);
   }
 
-  void clear(){
-    data.clear();
-  }
-
 /* ------------------ list management section ------------------ */
   void fill_like_list(uint cent_id,uint user_id){
     /* it will fill vector of list */
@@ -107,16 +103,16 @@ uint user_movie_rate(uint user_id, uint movie_id) const {
   return 0;
 }
 
-  void pass_data(Matrix<cont>& M){
-    /* this will pass data from this matrix to M */
-    uint user_id = 0;
-    for(auto& user : data){
-      if(user.empty()) continue;
-      for(auto& movie : user)
-        M.fill_like_dic(user_id,movie.first,movie.second);
-      user_id++;
-    }
-  }
+  // void pass_data(Matrix<cont>& M){
+  //   /* this will pass data from this matrix to M */
+  //   uint user_id = 0;
+  //   for(auto& user : data){
+  //     if(user.empty()) continue;
+  //     for(auto& movie : user)
+  //       M.fill_like_dic(user_id,movie.first,movie.second);
+  //     user_id++;
+  //   }
+  // }
 
   size_t real_avail_users(){
     /* This will determine all real avail users */
