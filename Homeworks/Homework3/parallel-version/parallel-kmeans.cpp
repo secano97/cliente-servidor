@@ -12,7 +12,7 @@ using ulmat = Matrix<ulist>;
 uint avail_films = 17770+1; 		// movies amount
 uint avail_users = 2649429+1;   // users amount
 uint avail_centroids = 100;	    // centroids amount
-uint variance_range = 5;				// variance range
+uint standard_dev_range = 5;				// variance range
 
 void get_cent_norm(const dmat& centroids,vector<double>& cent_norm){
 	/* it will calculate all centroids norm */
@@ -197,33 +197,66 @@ void modify_cent(uint current_cent_id, dmat& centroids,vector<double>& \
 	/* it will modify a centroid slightly */
 
 	// ----- finding a centroid with the greater users set than others -----
-	uint sel_cent_id = 0, cent_size = 0;
-	const vector<ulist>& users_set = similarity.get_cont();
+	vector<cont> upper_cent;
+	upper_cent.resize(4);
+	double dchunk = (double)centroids.numRows()/4;
+	uint chunk = ceil(dchunk);
 
-	for(uint cent_id=0; cent_id< centroids.numRows(); cent_id++) {
-		size_t set_size = users_set[cent_id].size();
-		if(set_size > cent_size) {
-			cent_size = set_size;
-			sel_cent_id = cent_id;
+	const vector<ulist>& users_set = similarity.get_cont();
+	#pragma omp parallel shared(centroids,users_set,upper_cent,chunk) \
+					num_threads(4)
+	{
+		uint cent_set_size = 0;
+		#pragma omp for schedule(dynamic,chunk) nowait
+		for(uint cent_id = 0; cent_id < centroids.numRows(); cent_id++) {
+			size_t set_size = users_set[cent_id].size();
+			if(set_size > cent_set_size) {
+				cent_set_size = set_size;
+				if(!upper_cent[omp_get_thread_num()].empty())
+					upper_cent[omp_get_thread_num()].clear();
+				upper_cent[omp_get_thread_num()].insert(pair<uint,uint>(cent_id, \
+									cent_set_size));
+			}
 		}
 	}
+
+	uint sel_cent_id = 0, cent_set_size = 0;
+	for(auto& cent : upper_cent)
+		for(auto& pair : cent)
+			if(pair.second > cent_set_size) {
+				cent_set_size = pair.second;
+				sel_cent_id = pair.first;
+			}
 
 	// ----- selecting an user from the greater users set -----
 	uint sel_user_id = similarity.get_rand_item_id(sel_cent_id);
-	double value = 0.0;
 
-	for(uint movie_id=1; movie_id <= centroids.numCols(); movie_id++) {
-		double movie_rate = centroids.at(sel_cent_id,movie_id);
-		double temp_movie_rate = movie_rate;
-		movie_rate += 0.5;
-		if(movie_rate > 5.0){
-			movie_rate = temp_movie_rate;
-			movie_rate -= 0.5;
+	// ----- moving through selected centroid -----
+	vector<double> results;
+	results.resize(4,0.0);
+	dchunk = (double)centroids.numCols()/4;
+	chunk = ceil(dchunk);
+
+	#pragma omp parallel shared(current_cent_id,centroids,chunk) num_threads(4)
+	{
+		#pragma omp for schedule(dynamic,chunk) nowait
+		for(uint movie_id=1; movie_id <= centroids.numCols(); movie_id++) {
+			double movie_rate = centroids.at(sel_cent_id,movie_id);
+			double temp_movie_rate = movie_rate;
+			movie_rate += 0.5;
+			if(movie_rate > 5.0){
+				movie_rate = temp_movie_rate;
+				movie_rate -= 0.5;
+			}
+			double& old_movie_rate = centroids.at(current_cent_id,movie_id);
+			old_movie_rate = movie_rate;
+			results[omp_get_thread_num()] += pow(movie_rate,2);
 		}
-		double& old_movie_rate = centroids.at(current_cent_id,movie_id);
-		old_movie_rate = movie_rate;
-		value += pow(movie_rate,2);
 	}
+
+	double value = 0.0;
+	for(auto& result : results)
+		value += result;
 
 	cent_norm[current_cent_id] = sqrt(value);
 	similarity.fill_like_list(current_cent_id,sel_user_id);
@@ -231,23 +264,23 @@ void modify_cent(uint current_cent_id, dmat& centroids,vector<double>& \
 
 void check_empt_cent(const mat& dataset,dmat& centroids,vector<double>& \
 											cent_norm,ulmat& similarity){
-	/* it will check if exist an empty centroid, then raplaced it with modify cent */
+	/* it will check if exist an empty centroid, then modigy it with modify_cent*/
 	for(uint cent_id=0; cent_id < centroids.numRows() ; cent_id++)
 		if(!cent_norm[cent_id])
 			modify_cent(cent_id/*,dataset*/,centroids,cent_norm,similarity);
 
 }
 
-double standar_desviation(vector<double>& errors) {
-	/* it will calculate variance */
+double standard_deviation(vector<double>& errors) {
+	/* it will calculate standard deviation */
 	double X = 0.0;
-	for(auto& error : errors)
-		X += error;
+	for(auto& Xi : errors)
+		X += Xi;
 	X /= errors.size();
 
 	double summary = 0.0;
-	for(auto& xi : errors)
-		summary += pow( (xi - X),2);
+	for(auto& Xi : errors)
+		summary += pow( (Xi - X),2);
 
 	return sqrt(summary/errors.size());
 }
@@ -280,8 +313,9 @@ int main(int argc, char *argv[]){
 	//centroids.print_num();
 
 	vector<double> errors;
-	errors.resize(variance_range);
+	errors.resize(standard_dev_range);
 	uint current_error = 0, iteration = 1;
+	bool _exit = false;
 
 	Timer timer;
 	while(true){
@@ -295,26 +329,26 @@ int main(int argc, char *argv[]){
 		get_cent_norm(new_centroids,cent_norm);
 		check_empt_cent(dataset,new_centroids,cent_norm,similarity);
 		double similarity_val = cent_simil(centroids,new_centroids,similarity);
+
 		errors[current_error] = similarity_val;
 		current_error++;
 		if(current_error > errors.size()-1)
 			current_error = 0;
-		cout << "---------------------------------------------------------" << endl;
+
+		cout << "--------------------------------------------------" << "\n";
 		if(iteration >= errors.size()) {
-			double standar_desviation_val = standar_desviation(errors);
-			cout << "Standar desviation = " << standar_desviation_val << endl;
-			if(standar_desviation_val < 0.01){
-				print_result(similarity);
-				break;
-			}
+			double standard_deviation_val = standard_deviation(errors);
+			cout << "Standard deviation = " << standard_deviation_val << "\n";
+			if(standard_deviation_val < 0.01)
+				_exit = true;
 		}
-		cout << "Current similarity = " << similarity_val << endl<< endl;
-		if(similarity_val < 0.01) {
+
+		cout << "Current similarity = " << similarity_val << "\n";
+		if(similarity_val < 0.01 || _exit) {
 			print_result(similarity);
 			break;
 		}
-		cout << "---------------------------------------------------------" << endl\
-				<< endl;
+		cout << "--------------------------------------------------" << "\n\n";
 		centroids = move(new_centroids);
 		iteration++;
 	}
