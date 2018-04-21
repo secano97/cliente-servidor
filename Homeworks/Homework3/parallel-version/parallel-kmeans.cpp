@@ -195,6 +195,22 @@ void cos_simil(const mat& dataset,const dmat& centroids,dmat& new_centroids, \
 //	similarities_summary[current_cent_id] = 0.0
 // }
 
+double individual_similarity(uint cent_id,uint user_id,const mat& dataset,\
+													const dmat& centroids){
+	/* it will calculate similarity between an user and a centroid */
+	const vector<cont>& users = dataset.get_cont();
+	double Ai_x_Bi = 0.0, val1 = 0.0, val2 = 0.0;
+	for(auto& movie : users[user_id]) {
+		double user_rate = movie.second;
+		double cent_rate = centroids.at(cent_id,movie.first);
+		Ai_x_Bi += user_rate * cent_rate;
+		val1 += pow(user_rate,2);
+		val2 += pow(cent_rate,2);
+	}
+
+	return acos(Ai_x_Bi/(sqrt(val1) * sqrt(val2)));
+}
+
 void modify_cent(uint current_cent_id,const mat& dataset, dmat& centroids,\
 								vector<double>& cent_norm, ulmat& similarity, \
 								vector<double>& similarities_summary) {
@@ -228,8 +244,10 @@ void modify_cent(uint current_cent_id,const mat& dataset, dmat& centroids,\
 			sel_cent_id = cent_id;
 		}
 
-	// ----- selecting an user from the greater users set -----
+	// -selecting an user from the greater users set and substracting similarity-
 	uint sel_user_id = similarity.get_rand_item_id(sel_cent_id);
+	double sim = individual_similarity(sel_cent_id,sel_user_id,dataset,centroids);
+	similarities_summary[sel_cent_id] -= sim;
 
 	// ----- moving through selected centroid and modifying slightly -----
 	vector<double> results;
@@ -262,18 +280,8 @@ void modify_cent(uint current_cent_id,const mat& dataset, dmat& centroids,\
 	similarity.fill_like_list(current_cent_id,sel_user_id);
 
 	// --- calculating similarity between generated centroid and selected user ---
-	const vector<cont>& users = dataset.get_cont();
-	double Ai_x_Bi = 0.0, val1 = 0.0, val2 = 0.0;
-	for(auto& movie : users[sel_user_id]) {
-		double user_rate = movie.second;
-		double cent_rate = centroids.at(current_cent_id,movie.first);
-		Ai_x_Bi += user_rate * cent_rate;
-		val1 += pow(user_rate,2);
-		val2 += pow(cent_rate,2);
-	}
-
-	double similarity_val = acos(Ai_x_Bi/(sqrt(val1) * sqrt(val2)) );
-	similarities_summary[current_cent_id] += similarity_val;
+	sim = individual_similarity(current_cent_id,sel_user_id,dataset,centroids);
+	similarities_summary[current_cent_id] += sim;
 }
 
 void check_empt_cent(const mat& dataset,dmat& centroids,vector<double>& \
