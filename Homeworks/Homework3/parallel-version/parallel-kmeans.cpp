@@ -161,7 +161,8 @@ void cos_simil(const mat& dataset,const dmat& centroids,dmat& new_centroids, \
 }
 
 // void modify_cent(uint current_cent_id,const mat& dataset,dmat& centroids, \
-// 	vector<double>& cent_norm,ulmat& similarity){
+// 	vector<double>& cent_norm,ulmat& similarity, vector<double>& \
+//	similarities_summary) {
 // 	/* it will modify a given centroid slightly */
 // 	uint upper_cent_id = 0, upper_cent_size = 0;
 // 	const vector<ulist>& users_set = similarity.get_cont();
@@ -191,6 +192,7 @@ void cos_simil(const mat& dataset,const dmat& centroids,dmat& new_centroids, \
 //
 //  	cent_norm[current_cent_id] = sqrt(value);
 // 	similarity.fill_like_list(current_cent_id,sel_user_id);
+//	similarities_summary[current_cent_id] = 0.0
 // }
 
 void modify_cent(uint current_cent_id,const mat& dataset, dmat& centroids,\
