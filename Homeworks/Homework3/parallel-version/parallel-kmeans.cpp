@@ -302,9 +302,13 @@ double standard_deviation(vector<double>& errors) {
 void print_result(const ulmat& similarity,const vector<double>& \
 								 similarities_summary) {
 	/* it will print centroids with theirs nearest users */
-	for(uint cent_id=0; cent_id < similarity.numRows(); cent_id++)
-		cout << cent_id << " : " << similarity.get_set_size(cent_id) \
+	double total_summary = 0.0;
+	for(uint cent_id=0; cent_id < similarity.numRows(); cent_id++) {
+		cout <<"["<< cent_id << " : " << similarity.get_set_size(cent_id)<<"]" \
 				 << " <------------> " << similarities_summary[cent_id] << "\n";
+		total_summary += similarities_summary[cent_id];
+	}
+	cout << "Total similarity value is = " << total_summary << "\n\n";
 }
 
 int main(int argc, char *argv[]){
