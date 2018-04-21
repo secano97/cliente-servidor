@@ -199,13 +199,13 @@ void modify_cent(uint current_cent_id,const mat& dataset, dmat& centroids,\
 	/* it will modify a centroid slightly */
 
 	// ----- finding a centroid with the greater users set than others -----
-	vector<cont> upper_cent;
-	upper_cent.resize(4);
+	vector<uint> upper_cent_id;
+	upper_cent_id.resize(4);
 	double dchunk = (double)centroids.numRows()/4;
 	uint chunk = ceil(dchunk);
 
 	const vector<ulist>& users_set = similarity.get_cont();
-	#pragma omp parallel shared(centroids,users_set,upper_cent,chunk) \
+	#pragma omp parallel shared(centroids,users_set,upper_cent_id,chunk) \
 					num_threads(4)
 	{
 		uint cent_set_size = 0;
@@ -214,21 +214,17 @@ void modify_cent(uint current_cent_id,const mat& dataset, dmat& centroids,\
 			size_t set_size = users_set[cent_id].size();
 			if(set_size > cent_set_size) {
 				cent_set_size = set_size;
-				if(!upper_cent[omp_get_thread_num()].empty())
-					upper_cent[omp_get_thread_num()].clear();
-				upper_cent[omp_get_thread_num()].insert(pair<uint,uint>(cent_id, \
-									cent_set_size));
+				upper_cent_id[omp_get_thread_num()] = cent_id;
 			}
 		}
 	}
 
 	uint sel_cent_id = 0, cent_set_size = 0;
-	for(auto& cent : upper_cent)
-		for(auto& pair : cent)
-			if(pair.second > cent_set_size) {
-				cent_set_size = pair.second;
-				sel_cent_id = pair.first;
-			}
+	for(auto& cent_id : upper_cent_id)
+		if(users_set[cent_id].size() > cent_set_size) {
+			cent_set_size = users_set[cent_id].size();
+			sel_cent_id = cent_id;
+		}
 
 	// ----- selecting an user from the greater users set -----
 	uint sel_user_id = similarity.get_rand_item_id(sel_cent_id);
