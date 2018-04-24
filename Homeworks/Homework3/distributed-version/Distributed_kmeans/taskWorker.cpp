@@ -1,8 +1,14 @@
+#include <zmqpp/zmqpp.hpp>
 #include <fstream>
-#include <iostream>
 #include <sstream>
 #include <cassert>
 #include <random>
+#include <string>
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <iostream>
+#include <time.h>
 #include "load.hh"
 
 using namespace std;
@@ -11,8 +17,12 @@ using ulmat = Matrix<ulist>;
 
 uint avail_films = 17770+1; 		// movies amount
 uint avail_users = 2649429+1;   // users amount
-uint avail_centroids = 10;	    // centroids amount
+uint avail_centroids = 10;	    // centroids amount k
 uint standard_dev_range = 5;				// variance range
+
+// initialize the 0MQ context
+zmqpp::context context;
+
 
 void get_cent_norm(const dmat& centroids,vector<double>& cent_norm){
 	/* it will calculate all centroids norm */
@@ -160,41 +170,6 @@ void cos_simil(const mat& dataset,const dmat& centroids,dmat& new_centroids, \
 
 }
 
-// void modify_cent(uint current_cent_id,const mat& dataset,dmat& centroids, \
-// 	vector<double>& cent_norm,ulmat& similarity, vector<double>& \
-//	similarities_summary) {
-// 	/* it will modify a given centroid slightly */
-// 	uint upper_cent_id = 0, upper_cent_size = 0;
-// 	const vector<ulist>& users_set = similarity.get_cont();
-//
-// 	// ----- finding a centroid with the greater users set than others -----
-// 	for(uint cent_id=0; cent_id< centroids.numRows(); cent_id++) {
-// 		size_t set_size = users_set[cent_id].size();
-// 		if(set_size > upper_cent_size) {
-// 			upper_cent_size = set_size;
-// 			upper_cent_id = cent_id;
-// 		}
-// 	}
-//
-// 	// ----- selecting an user from the greater users set -----
-// 	uint sel_user_id = similarity.get_rand_item_id(upper_cent_id);
-//
-// 	// ----- passing data between selected user as new centroid -----
-// 	double value = 0.0;
-// 	const vector<cont>& users = dataset.get_cont();
-//
-// 	for(auto& movie : users[sel_user_id]) {
-// 		 double& movie_rate = centroids.at(current_cent_id,movie.first);
-// 		 double rate =  movie.second;
-// 		 movie_rate = rate;
-// 		 value += pow(rate,2);
-// 	}
-//
-//  	cent_norm[current_cent_id] = sqrt(value);
-// 	similarity.fill_like_list(current_cent_id,sel_user_id);
-//	similarities_summary[current_cent_id] = 0.0
-// }
-
 double individual_similarity(uint cent_id,uint user_id,const mat& dataset,\
 													const dmat& centroids){
 	/* it will calculate similarity between an user and a centroid */
@@ -321,6 +296,110 @@ void print_result(const ulmat& similarity,const vector<double>& \
 	cout << "Total similarity value is = " << total_summary << "\n\n";
 }
 
+double calculate_SSD(const ulmat& similarity,const vector<double>& \
+								 similarities_summary) {
+	/* it will return the total summary of the similarities between each user and his centroid */
+	double total_summary = 0.0;
+	for(uint cent_id=0; cent_id < similarity.numRows(); cent_id++) {
+		total_summary += similarities_summary[cent_id];
+	}
+	return total_summary;
+}
+
+void taskWorker(const mat& dataset) {
+  //  Socket to receive work from
+  zmqpp::socket receiver(context, zmqpp::socket_type::pull);
+  receiver.connect("tcp://localhost:5557");
+
+  //  Socket to send result to
+  zmqpp::socket sender(context, zmqpp::socket_type::push);
+  sender.connect("tcp://localhost:5558");
+
+  // Tell me when the ventilator is ready to send tasks
+  cout << "Press Enter when the ventilator is ready: " << endl;
+  getchar ();
+  cout << "Processing tasks from the ventilator…\n" << endl;
+
+
+  //  Process tasks forever
+  while (1) {
+
+		zmqpp::message task;
+		receiver.receive(task);
+
+    // Printing the task from the ventilator
+    cout << "The value of k to calculate is: " << task.get(0);
+    cout << endl;
+    cout << endl;
+
+    vector<double> users_norm, cent_norm;
+  	cent_norm.resize(avail_centroids);
+  	users_norm.resize(dataset.numRows());
+  	get_users_norm(dataset,users_norm);
+
+    /* ----------- phase 2 building initial centroids ----------- */
+  	dmat centroids(avail_centroids, avail_films);
+  	centroids.fill_like_num();
+  	get_cent_norm(centroids,cent_norm);
+  	//centroids.print_num();
+
+  	vector<double> errors;
+  	errors.resize(standard_dev_range);
+  	uint current_error = 0, iteration = 1;
+  	bool _exit = false;
+
+  	Timer timer;
+		while(true){
+  	vector<double> similarities_summary;
+  	similarities_summary.resize(avail_centroids,0.0);
+  	/* ----------- phase 3 building similarity sets ----------- */
+  	ulmat similarity(avail_centroids);
+  	dmat new_centroids(avail_centroids,avail_films);
+  	cos_simil(dataset,centroids,new_centroids,similarity,users_norm,cent_norm,\
+  							similarities_summary);
+  	//similarity.print_list();
+
+  	/* ----------- phase 4 cosine similraty between two centroids ----------- */
+  	get_cent_norm(new_centroids,cent_norm);
+  	check_empt_cent(dataset,new_centroids,cent_norm,similarity, \
+  										similarities_summary);
+  	double similarity_val = cent_simil(centroids,new_centroids,similarity);
+
+  	errors[current_error] = similarity_val;
+  	current_error++;
+  	if(current_error > errors.size()-1)
+  		current_error = 0;
+
+  	cout << "--------------------------------------------------" << "\n";
+  	if(iteration >= errors.size()) {
+  		double standard_deviation_val = standard_deviation(errors);
+  		cout << "Standard deviation = " << standard_deviation_val << "\n";
+  		if(standard_deviation_val < 0.01)
+  				_exit = true;
+
+  	}
+
+  	cout << "Current similarity = " << similarity_val << "\n";
+  	if(similarity_val < 0.01 || _exit) {
+			print_result(similarity,similarities_summary);
+			double total_summary = 0.0;
+			total_summary = calculate_SSD(similarity,similarities_summary);
+			// Sending the result to the sink
+	    zmqpp::message result;
+	    result << total_summary;
+	    sender.send(result);
+  		break;
+  	}
+  	cout << "--------------------------------------------------" << "\n\n";
+  	centroids = move(new_centroids);
+  	iteration++;
+
+  	cout << "Transcurred seconds = " <<	(double)timer.elapsed()/1000 << endl;
+
+  }
+}
+}
+
 int main(int argc, char *argv[]){
 	if(argc != 2){
 		cerr << "Usage {" << argv[0] << " filename.txt}\n";
@@ -331,62 +410,8 @@ int main(int argc, char *argv[]){
 	load_data(argv[1],avail_users,dataset);
 	// dataset.print_dic();
 
-	vector<double> users_norm, cent_norm;
-	cent_norm.resize(avail_centroids);
-	users_norm.resize(dataset.numRows());
-	get_users_norm(dataset,users_norm);
-
-	/* ----------- phase 2 building initial centroids ----------- */
-	dmat centroids(avail_centroids, avail_films);
-	centroids.fill_like_num();
-	get_cent_norm(centroids,cent_norm);
-	//centroids.print_num();
-
-	vector<double> errors;
-	errors.resize(standard_dev_range);
-	uint current_error = 0, iteration = 1;
-	bool _exit = false;
-
-	Timer timer;
-	while(true){
-		vector<double> similarities_summary;
-		similarities_summary.resize(avail_centroids,0.0);
-		/* ----------- phase 3 building similarity sets ----------- */
-		ulmat similarity(avail_centroids);
-		dmat new_centroids(avail_centroids,avail_films);
-		cos_simil(dataset,centroids,new_centroids,similarity,users_norm,cent_norm,\
-							similarities_summary);
-		//similarity.print_list();
-
-		/* ----------- phase 4 cosine similraty between two centroids ----------- */
-		get_cent_norm(new_centroids,cent_norm);
-		check_empt_cent(dataset,new_centroids,cent_norm,similarity, \
-										similarities_summary);
-		double similarity_val = cent_simil(centroids,new_centroids,similarity);
-
-		errors[current_error] = similarity_val;
-		current_error++;
-		if(current_error > errors.size()-1)
-			current_error = 0;
-
-		cout << "--------------------------------------------------" << "\n";
-		if(iteration >= errors.size()) {
-			double standard_deviation_val = standard_deviation(errors);
-			cout << "Standard deviation = " << standard_deviation_val << "\n";
-			if(standard_deviation_val < 0.01)
-				_exit = true;
-		}
-
-		cout << "Current similarity = " << similarity_val << "\n";
-		if(similarity_val < 0.01 || _exit) {
-			print_result(similarity,similarities_summary);
-			break;
-		}
-		cout << "--------------------------------------------------" << "\n\n";
-		centroids = move(new_centroids);
-		iteration++;
-	}
-	cout << "Transcurred seconds = " <<	(double)timer.elapsed()/1000 << endl;
+  // Initializing the worker with its job
+  taskWorker(dataset);
 
 	return 0;
 }

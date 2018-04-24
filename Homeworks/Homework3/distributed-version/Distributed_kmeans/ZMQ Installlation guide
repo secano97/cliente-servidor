@@ -1,0 +1,32 @@
+- primero, en el escritorio creese una carpeta y pongale ZMQ
+-ahora vaya a la pagina de zmq -> http://zeromq.org/intro:get-the-software
+
+- Hacer clic donde dice POSIX Tarball
+
+-listo, eso que acabo de descargar copielo en la carpeta ZMQ
+
+-ahora abra lo consola
+-y ubiquese dentro de la carpeta ZMQ
+-escriba "ls" y mire si le aparece el archivo zmq-4.2.2.tar.gz
+-tar xfz zmq-4.2.2.tar.gz y presiona enter
+-le debe descomprimir
+-entrar a la carpeta
+-listo escriba   ./configure
+ 
+-escribir sudo make
+-despues escribir sudo make install
+
+ahora clonar repositorio de git -> git clone https://github.com/zeromq/zmqpp.git
+
+- dentro de la carpeta ZMQ
+le debe haber quedado una carpeta que dice
+zmqpp la version que esten usando.
+
+-Dentro de la carpeta zmqpp escribir sudo make
+
+-despues escribir sudo make install
+
+- para compilars escribe 
+g++ -std=c++11 -L/usr/local/lib -I/usr/local/include nombre.cpp -o nombre -lzmqpp -lzmq -lsfml-audio
+
+g++ -std=c++11 -o nombre nombre.cpp -lzmq -lzmqpp
