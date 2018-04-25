@@ -14,35 +14,25 @@ zmqpp::context context;
 
 void taskSink() {
 
-  //  Prepare our socket to receive the ssd
+  //  Prepare our socket to receive the value of ssd
   zmqpp::socket receiver(context, zmqpp::socket_type::pull);
   receiver.bind("tcp://*:5558");
 
-  //  Recieving the ssd value
+  //  Prepare our socket to send the value of ssd to the ventilator
+  zmqpp::socket sender(context, zmqpp::socket_type::push);
+  sender.connect("tcp://localhost:5556");
+
+  //  Recieving the ssd value from workers
   zmqpp::message ssd;
   receiver.receive(ssd);
   cout << "The ssd sended from worker was: " << ssd.get(0);
   cout << endl;
 
-  //  Start our clock now
-  struct timeval tstart;
-  gettimeofday (&tstart, NULL);
-
-  //  Calculate and report duration of batch
-  struct timeval tend, tdiff;
-  gettimeofday (&tend, NULL);
-
-  if (tend.tv_usec < tstart.tv_usec) {
-      tdiff.tv_sec = tend.tv_sec - tstart.tv_sec - 1;
-      tdiff.tv_usec = 1000000 + tend.tv_usec - tstart.tv_usec;
-  }
-  else {
-      tdiff.tv_sec = tend.tv_sec - tstart.tv_sec;
-      tdiff.tv_usec = tend.tv_usec - tstart.tv_usec;
-  }
-  double total_msec = tdiff.tv_sec * 1000 + tdiff.tv_usec / 1000;
-  cout << "\nTotal elapsed time: " << total_msec << " msec\n" << endl;
-
+  // Sending the ssd value to ventilator
+  char k_ssd [10];
+  sprintf (k_ssd, "%d", stoi(ssd.get(0)));
+  cout << "Sending the ssd value: " << k_ssd << endl;
+  sender.send(k_ssd);
 }
 
 int main(int argc, char const *argv[]) {

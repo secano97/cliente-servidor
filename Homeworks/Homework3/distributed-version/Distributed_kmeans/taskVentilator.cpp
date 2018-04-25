@@ -85,9 +85,13 @@ int get_k_priority(int k, double ssd) {
 
 void taskVentilator() {
 
-  //  Socket to send messages on
+  //  Socket to send tasks to workers
   zmqpp::socket sender(context, type);
   sender.bind("tcp://*:5557");
+
+  //  Socket to receive the result from sink
+  zmqpp::socket receiver(context, zmqpp::socket_type::pull);
+  receiver.bind("tcp://*:5556");
 
   cout << "Press Enter when the workers are ready: " << endl;
   getchar ();
@@ -104,7 +108,7 @@ void taskVentilator() {
   //  Initialize random number generator
   srandom ((unsigned) time (NULL));
 
-  // Sending the value of k to the workers
+  // Sending the value of k to the worker
   char string [10];
   int work;
   work = getBestK(1, 10);
@@ -112,7 +116,14 @@ void taskVentilator() {
   cout << "Sending best k: " << string <<endl;
   sender.send(string);
 
+	//  Recieving the ssd value from sink
+  zmqpp::message ssd;
+  receiver.receive(ssd);
+  cout << "The ssd sended from sink was: " << ssd.get(0);
+  cout << endl;
+
   }
+
   // cout << "Total expected cost: " << total_msec << " msec" << endl;
   // sleep (1);              //  Give 0MQ time to deliver
 
