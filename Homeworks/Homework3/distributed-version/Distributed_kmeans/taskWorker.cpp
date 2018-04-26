@@ -327,7 +327,7 @@ void taskWorker(const mat& dataset) {
 		zmqpp::message task;
 		receiver.receive(task);
 
-    // Printing the task sended from the ventilator
+    // Printing the task sent from the ventilator
     cout << "The value of k to calculate is: " << task.get(0);
 		avail_centroids = stoul(task.get(0));
     cout << endl;
@@ -351,56 +351,56 @@ void taskWorker(const mat& dataset) {
 
   	Timer timer;
 		while(true){
-  	vector<double> similarities_summary;
-  	similarities_summary.resize(avail_centroids,0.0);
-  	/* ----------- phase 3 building similarity sets ----------- */
-  	ulmat similarity(avail_centroids);
-  	dmat new_centroids(avail_centroids,avail_films);
-  	cos_simil(dataset,centroids,new_centroids,similarity,users_norm,cent_norm,\
-  							similarities_summary);
-  	//similarity.print_list();
+	  	vector<double> similarities_summary;
+	  	similarities_summary.resize(avail_centroids,0.0);
+	  	/* ----------- phase 3 building similarity sets ----------- */
+	  	ulmat similarity(avail_centroids);
+	  	dmat new_centroids(avail_centroids,avail_films);
+	  	cos_simil(dataset,centroids,new_centroids,similarity,users_norm,cent_norm,\
+	  							similarities_summary);
+	  	//similarity.print_list();
 
-  	/* ----------- phase 4 cosine similraty between two centroids ----------- */
-  	get_cent_norm(new_centroids,cent_norm);
-  	check_empt_cent(dataset,new_centroids,cent_norm,similarity, \
-  										similarities_summary);
-  	double similarity_val = cent_simil(centroids,new_centroids,similarity);
+	  	/* ----------- phase 4 cosine similraty between two centroids ----------- */
+	  	get_cent_norm(new_centroids,cent_norm);
+	  	check_empt_cent(dataset,new_centroids,cent_norm,similarity, \
+	  										similarities_summary);
+	  	double similarity_val = cent_simil(centroids,new_centroids,similarity);
 
-  	errors[current_error] = similarity_val;
-  	current_error++;
-  	if(current_error > errors.size()-1)
-  		current_error = 0;
+	  	errors[current_error] = similarity_val;
+	  	current_error++;
+	  	if(current_error > errors.size()-1)
+	  		current_error = 0;
 
-  	cout << "--------------------------------------------------" << "\n";
-  	if(iteration >= errors.size()) {
-  		double standard_deviation_val = standard_deviation(errors);
-  		cout << "Standard deviation = " << standard_deviation_val << "\n";
-  		if(standard_deviation_val < 0.01)
-  				_exit = true;
+	  	cout << "--------------------------------------------------" << "\n";
+	  	if(iteration >= errors.size()) {
+	  		double standard_deviation_val = standard_deviation(errors);
+	  		cout << "Standard deviation = " << standard_deviation_val << "\n";
+	  		if(standard_deviation_val < 0.01)
+	  				_exit = true;
+
+	  	}
+
+	  	cout << "Current similarity = " << similarity_val << "\n";
+	  	if(similarity_val < 0.01 || _exit) {
+				print_result(similarity,similarities_summary);
+				double total_summary = 0.0;
+				total_summary = calculate_SSD(similarity,similarities_summary);
+				// Sending the result to the sink
+				char ssd [10];
+				double result = 0.0;
+				result = total_summary;
+		    sprintf (ssd, "%f", result);
+		    sender.send(ssd);
+	  		break;
+	  	}
+	  	cout << "--------------------------------------------------" << "\n\n";
+	  	centroids = move(new_centroids);
+	  	iteration++;
+
+	  	cout << "Transcurred seconds = " <<	(double)timer.elapsed()/1000 << endl;
 
   	}
-
-  	cout << "Current similarity = " << similarity_val << "\n";
-  	if(similarity_val < 0.01 || _exit) {
-			print_result(similarity,similarities_summary);
-			double total_summary = 0.0;
-			total_summary = calculate_SSD(similarity,similarities_summary);
-			// Sending the result to the sink
-			char ssd [10];
-			double result = 0.0;
-			result = total_summary;
-	    sprintf (ssd, "%f", result);
-	    sender.send(ssd);
-  		break;
-  	}
-  	cout << "--------------------------------------------------" << "\n\n";
-  	centroids = move(new_centroids);
-  	iteration++;
-
-  	cout << "Transcurred seconds = " <<	(double)timer.elapsed()/1000 << endl;
-
-  }
-}
+	}
 }
 
 int main(int argc, char *argv[]){

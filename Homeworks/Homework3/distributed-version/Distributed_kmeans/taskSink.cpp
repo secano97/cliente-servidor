@@ -25,7 +25,7 @@ void taskSink() {
   //  Recieving the ssd value from workers
   zmqpp::message ssd;
   receiver.receive(ssd);
-  cout << "The ssd sended from worker was: " << ssd.get(0);
+  cout << "The ssd sent from worker was: " << ssd.get(0);
   cout << endl;
 
   // Sending the ssd value to ventilator
