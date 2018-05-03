@@ -11,31 +11,31 @@ using ulmat = Matrix<ulist>;
 
 uint avail_films = 17770+1; 		// movies amount
 uint avail_users = 2649429+1;   // users amount
-uint avail_centroids = 10;	    // centroids amount
+uint avail_centroids = 25;	    // centroids amount
 uint standard_dev_range = 5;				// variance range
 
 void get_cent_norm(const dmat& centroids,vector<double>& cent_norm){
 	/* it will calculate all centroids norm */
-	double dchunk = (double)centroids.numRows()/4;
+	double dchunk = centroids.numRows()/4.0;
 	uint chunk = ceil(dchunk);
 
-	#pragma omp parallel shared(centroids,cent_norm,chunk) num_threads(4)
-	{
+	//#pragma omp parallel shared(centroids,cent_norm,chunk) num_threads(4)
+	//{
 
-		#pragma omp for schedule(dynamic,chunk) nowait
+		//#pragma omp for schedule(dynamic,chunk) nowait
 		for(uint cent_id=0; cent_id < centroids.numRows(); cent_id++){
 			double value = 0.0;
 			for(uint movie_id=1; movie_id <= centroids.numCols(); movie_id++)
 				value += pow(centroids.at(cent_id,movie_id),2);
 			cent_norm[cent_id] = sqrt(value);
 		}
-	}
+	//}
 
 }
 
 void get_users_norm(const mat& dataset,vector<double>& users_norm){
 	/* it will calculate all users norm */
-	double dchunk = (double)dataset.numRows()/4;
+	double dchunk =dataset.numRows()/4.0;
 	uint chunk = ceil(dchunk);
 
 	const vector<cont>& users = dataset.get_cont();
@@ -55,14 +55,13 @@ void get_users_norm(const mat& dataset,vector<double>& users_norm){
 double cent_simil(const dmat& old_centroids,const dmat& new_centroids, \
 									const ulmat& similarity){
 	/* it will calculate cosine similarity between old_cent and new_cent */
-	vector<double> results;
+	vector<double> results; 																												// for the managmen of the critic scope
 	results.resize(old_centroids.numRows());
 	double dchunk = (double)old_centroids.numRows()/4;
 	uint chunk = ceil(dchunk);
-	const vector<ulist>& users_set = similarity.get_cont();
+	const vector<ulist>& users_set = similarity.get_cont();  											// similarity is where i save how many users are bind at one specific centroid
 
-	#pragma omp parallel shared(old_centroids,new_centroids,results,users_set,chunk) \
-												num_threads(4)
+	#pragma omp parallel shared(old_centroids,new_centroids,results,users_set,chunk) num_threads(4)  // check this paralelization
 	{
 		#pragma omp for schedule(dynamic,chunk) nowait
 		for(uint cent_id = 0; cent_id < old_centroids.numRows(); cent_id++){
@@ -80,10 +79,12 @@ double cent_simil(const dmat& old_centroids,const dmat& new_centroids, \
 		}
 	}
 
+	/*Here i'm adding al  the values of the result vector*/
 	double similarity_val = 0.0;
 	for(auto& data : results)
 		similarity_val += data;
 
+/*here i'm geting the average of the similarity between old centroids and news*/
 	return similarity_val/old_centroids.numRows();
 }
 
@@ -92,7 +93,7 @@ void cos_simil(const mat& dataset,const dmat& centroids,dmat& new_centroids, \
 							cent_norm,vector<double>& similarities_summary) {
 	/* This will calculate the cosain similarity between centroids and users */
 	const vector<cont>& users = dataset.get_cont();
-	dmat users_rate(avail_centroids,avail_films);
+	dmat users_rate(avail_centroids,avail_films); // quantity of user's rate
 	double dchunk = (double)dataset.numRows()/4;
 	uint chunk = ceil(dchunk);
 
@@ -103,9 +104,10 @@ void cos_simil(const mat& dataset,const dmat& centroids,dmat& new_centroids, \
 	{
 
 		#pragma omp for schedule(dynamic,chunk) nowait
+		//select the cent more similar whit a centroid
 		for(uint user_id=0; user_id < dataset.numRows(); user_id++) {
 			uint temp_cent_id = 0;
-			double temp_simil_val = numeric_limits<double>::max();
+			double temp_simil_val = numeric_limits<double>::max(); // more close to 0
 
 			for(uint cent_id = 0; cent_id < centroids.numRows(); cent_id++) {
 				double Ai_x_Bi = 0.0;
@@ -115,26 +117,27 @@ void cos_simil(const mat& dataset,const dmat& centroids,dmat& new_centroids, \
 					double user_rate = movie.second;
 					Ai_x_Bi += cent_rate * user_rate;
 				}
-
+				// calc de similarity between one user and one centroid
 				double similarity_value = acos( Ai_x_Bi/(cent_norm[cent_id] * \
 																	users_norm[user_id]) );
 				if(similarity_value < temp_simil_val) {
+					//comparation about who is the centroid with more similarity
 					temp_simil_val = similarity_value;
 					temp_cent_id = cent_id;
 				}
 			}
-
+			//here i'm inside  of the for of the users
 			/* ------ users rate summary by parts ------ */
 			omp_set_lock(&writelock);
 			for(auto& movie : users[user_id]){
-				double& movie_rate = new_centroids.at(temp_cent_id,movie.first);
-				double& users =  users_rate.at(temp_cent_id,movie.first);
-				movie_rate += movie.second;
-				users+=1;
+				double& movie_rate = new_centroids.at(temp_cent_id,movie.first);				// I get the value in a specific cell of new_centroids.
+				double& users =  users_rate.at(temp_cent_id,movie.first);								// i get the number of users that has quilified a specific film
+				movie_rate += movie.second; 																						// add the calification.
+				users+=1;																																// add a new person that qualified a specific film
 			}
 
-			similarities_summary[temp_cent_id] += temp_simil_val;
-			similarity.fill_like_list(temp_cent_id,user_id);
+			similarities_summary[temp_cent_id] += temp_simil_val; 										// add the similarity of this user at the centroid that is biding
+			similarity.fill_like_list(temp_cent_id,user_id); 													// add the user_id at the list of users that are binding at the centroid
 			omp_unset_lock(&writelock);
 		}
 
@@ -143,8 +146,8 @@ void cos_simil(const mat& dataset,const dmat& centroids,dmat& new_centroids, \
 
 	dchunk = (double)centroids.numRows()/4;
 	chunk = ceil(dchunk);
-	#pragma omp parallel shared(centroids,new_centroids,users_rate,chunk) \
-												num_threads(4)
+	#pragma omp parallel shared(centroids,new_centroids,users_rate,chunk)num_threads(4) 			// check this paralelization
+
 	{
 		/* ------ averaging users rate ------ */
 		#pragma omp for schedule(dynamic,chunk) nowait
@@ -195,8 +198,8 @@ void cos_simil(const mat& dataset,const dmat& centroids,dmat& new_centroids, \
 //	similarities_summary[current_cent_id] = 0.0
 // }
 
-double individual_similarity(uint cent_id,uint user_id,const mat& dataset,\
-													const dmat& centroids){
+double individual_similarity(uint cent_id,uint user_id,const mat& dataset, const dmat& centroids){ // this function y used whe a centrois is equal at 0
+
 	/* it will calculate similarity between an user and a centroid */
 	const vector<cont>& users = dataset.get_cont();
 	double Ai_x_Bi = 0.0, val1 = 0.0, val2 = 0.0;
@@ -217,14 +220,13 @@ void modify_cent(uint current_cent_id,const mat& dataset, dmat& centroids,\
 	/* it will modify a centroid slightly */
 
 	// ----- finding a centroid with the greater users set than others -----
-	vector<uint> upper_cent_id;
+	vector<uint> upper_cent_id;																										// managment of the critic season
 	upper_cent_id.resize(4);
 	double dchunk = (double)centroids.numRows()/4;
 	uint chunk = ceil(dchunk);
 
 	const vector<ulist>& users_set = similarity.get_cont();
-	#pragma omp parallel shared(centroids,users_set,upper_cent_id,chunk) \
-					num_threads(4)
+	#pragma omp parallel shared(centroids,users_set,upper_cent_id,chunk)num_threads(4) 				// check this paralelization
 	{
 		uint cent_set_size = 0;
 		#pragma omp for schedule(dynamic,chunk) nowait
@@ -237,9 +239,9 @@ void modify_cent(uint current_cent_id,const mat& dataset, dmat& centroids,\
 		}
 	}
 
-	uint sel_cent_id = 0, cent_set_size = 0;
+	uint sel_cent_id = 0, cent_set_size = 0; // it will save the cent id whit more users and how much users
 	for(auto& cent_id : upper_cent_id)
-		if(users_set[cent_id].size() > cent_set_size) {
+		if(users_set[cent_id].size() > cent_set_size) {   // users_set = similraty
 			cent_set_size = users_set[cent_id].size();
 			sel_cent_id = cent_id;
 		}
@@ -258,38 +260,39 @@ void modify_cent(uint current_cent_id,const mat& dataset, dmat& centroids,\
 	#pragma omp parallel shared(current_cent_id,centroids,chunk) num_threads(4)
 	{
 		#pragma omp for schedule(dynamic,chunk) nowait
-		for(uint movie_id=1; movie_id <= centroids.numCols(); movie_id++) {
-			double movie_rate = centroids.at(sel_cent_id,movie_id);
+		/*i will modify the biggest center and i will create a copy of the initial centroid */
+		for(uint movie_id=1; movie_id <= centroids.numCols(); movie_id++) {					// whit this i will run al the films
+			double movie_rate = centroids.at(sel_cent_id,movie_id);										// return the rate of the biggest centroid  in a specific film
 			double temp_movie_rate = movie_rate;
 			movie_rate += 0.5;
 			if(movie_rate > 5.0){
 				movie_rate = temp_movie_rate;
 				movie_rate -= 0.5;
 			}
-			double& old_movie_rate = centroids.at(current_cent_id,movie_id);
+			double& old_movie_rate = centroids.at(current_cent_id,movie_id);					// i'm coping the old movie rate of the Best centroid at the centroid that is in 0
 			old_movie_rate = movie_rate;
-			results[omp_get_thread_num()] += pow(movie_rate,2);
+			results[omp_get_thread_num()] += pow(movie_rate,2);												// whit this i will calculate the new norm of the centroid
 		}
 	}
 
 	double value = 0.0;
 	for(auto& result : results)
-		value += result;
+		value += result;																														//add the result of the paralelization
 
-	cent_norm[current_cent_id] = sqrt(value);
-	similarity.fill_like_list(current_cent_id,sel_user_id);
+	cent_norm[current_cent_id] = sqrt(value);																			//add the new_norm of the centroid at the vector of norms
+	similarity.fill_like_list(current_cent_id,sel_user_id);												//add the user at the list of similarity
 
 	// --- calculating similarity between generated centroid and selected user ---
 	sim = individual_similarity(current_cent_id,sel_user_id,dataset,centroids);
-	similarities_summary[current_cent_id] += sim;
+	similarities_summary[current_cent_id] += sim;																	//add the similraty at the similarities_summary of the new centorid
 }
 
 void check_empt_cent(const mat& dataset,dmat& centroids,vector<double>& \
 											cent_norm,ulmat& similarity,\
 											vector<double>& similarities_summary) {
-	/* it will check if exist an empty centroid, then modigy it with modify_cent*/
+	/* it will check if exist an empty centroid, then modify it with modify_cent*/
 	for(uint cent_id=0; cent_id < centroids.numRows() ; cent_id++)
-		if(!cent_norm[cent_id])
+		if(!cent_norm[cent_id])																											// if the norm is 0
 			modify_cent(cent_id,dataset,centroids,cent_norm,similarity,\
 									similarities_summary);
 
@@ -373,7 +376,7 @@ int main(int argc, char *argv[]){
 		if(iteration >= errors.size()) {
 			double standard_deviation_val = standard_deviation(errors);
 			cout << "Standard deviation = " << standard_deviation_val << "\n";
-			if(standard_deviation_val < 0.01)
+			if(standard_deviation_val < 0.02)
 				_exit = true;
 		}
 

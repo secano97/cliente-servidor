@@ -1,27 +1,29 @@
+#include <iostream>
+#include <string>
 #include <zmqpp/zmqpp.hpp>
+#include <chrono>
 #include <fstream>
+#include <iostream>
 #include <sstream>
 #include <cassert>
 #include <random>
-#include <string>
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <iostream>
-#include <time.h>
 #include "load.hh"
 
+
 using namespace std;
+using namespace zmqpp;
 using dmat = Matrix<double>;
 using ulmat = Matrix<ulist>;
 
 uint avail_films = 17770+1; 		// movies amount
 uint avail_users = 2649429+1;   // users amount
-uint avail_centroids = 10;	    // centroids amount k
 uint standard_dev_range = 5;				// variance range
+uint avail_centroids = 0;
 
-// initialize the 0MQ context
-zmqpp::context context;
+typedef string str;
+
+// these two fields will have server ip and port
+str ip="localhost", port="5000";
 
 
 void get_cent_norm(const dmat& centroids,vector<double>& cent_norm){
@@ -284,7 +286,7 @@ double standard_deviation(vector<double>& errors) {
 	return sqrt(summary/errors.size());
 }
 
-void print_result(const ulmat& similarity,const vector<double>& \
+double print_result(const ulmat& similarity,const vector<double>& \
 								 similarities_summary) {
 	/* it will print centroids with theirs nearest users */
 	double total_summary = 0.0;
@@ -294,6 +296,7 @@ void print_result(const ulmat& similarity,const vector<double>& \
 		total_summary += similarities_summary[cent_id];
 	}
 	cout << "Total similarity value is = " << total_summary << "\n\n";
+	return total_summary;
 }
 
 double calculate_SSD(const ulmat& similarity,const vector<double>& \
@@ -306,115 +309,123 @@ double calculate_SSD(const ulmat& similarity,const vector<double>& \
 	return total_summary;
 }
 
-void taskWorker(const mat& dataset) {
-  //  Socket to receive work from ventilator
-  zmqpp::socket receiver(context, zmqpp::socket_type::pull);
-  receiver.connect("tcp://localhost:5557");
+double make_work(uint k, const mat& dataset) { // principal function of kmeans
+  avail_centroids = k;	    // centroids amount k
 
-  //  Socket to send result to the sink
-  zmqpp::socket sender(context, zmqpp::socket_type::push);
-  sender.connect("tcp://localhost:5558");
+  vector<double> users_norm, cent_norm;
+	cent_norm.resize(avail_centroids);
+	users_norm.resize(dataset.numRows());
+	get_users_norm(dataset,users_norm);
 
-  // Tell me when the ventilator is ready to send tasks
-  cout << "Press Enter when the ventilator is ready: " << endl;
-  getchar ();
-  cout << "Processing tasks from the ventilator…\n" << endl;
+	/* ----------- phase 2 building initial centroids ----------- */
+	dmat centroids(avail_centroids, avail_films);
+	centroids.fill_like_num();
+	get_cent_norm(centroids,cent_norm);
+	//centroids.print_num();
 
+	vector<double> errors;
+	errors.resize(standard_dev_range);
+	uint current_error = 0, iteration = 1;
+	bool _exit = false;
 
-  //  Process tasks forever
-  while (1) {
+	Timer timer;
+	while(true){
+		vector<double> similarities_summary;
+		similarities_summary.resize(avail_centroids,0.0);
+		/* ----------- phase 3 building similarity sets ----------- */
+		ulmat similarity(avail_centroids);
+		dmat new_centroids(avail_centroids,avail_films);
+		cos_simil(dataset,centroids,new_centroids,similarity,users_norm,cent_norm,\
+							similarities_summary);
+		//similarity.print_list();
 
-		zmqpp::message task;
-		receiver.receive(task);
+		/* ----------- phase 4 cosine similraty between two centroids ----------- */
+		get_cent_norm(new_centroids,cent_norm);
+		check_empt_cent(dataset,new_centroids,cent_norm,similarity, \
+										similarities_summary);
+		double similarity_val = cent_simil(centroids,new_centroids,similarity);
 
-    // Printing the task sent from the ventilator
-    cout << "The value of k to calculate is: " << task.get(0);
-		avail_centroids = stoul(task.get(0));
-    cout << endl;
-    cout << endl;
+		errors[current_error] = similarity_val;
+		current_error++;
+		if(current_error > errors.size()-1)
+			current_error = 0;
 
-    vector<double> users_norm, cent_norm;
-  	cent_norm.resize(avail_centroids);
-  	users_norm.resize(dataset.numRows());
-  	get_users_norm(dataset,users_norm);
+		cout << "--------------------------------------------------" << "\n";
+		if(iteration >= errors.size()) {
+			double standard_deviation_val = standard_deviation(errors);
+			cout << "Standard deviation = " << standard_deviation_val << "\n";
+			if(standard_deviation_val < 0.022)
+				_exit = true;
+		}
 
-    /* ----------- phase 2 building initial centroids ----------- */
-  	dmat centroids(avail_centroids, avail_films);
-  	centroids.fill_like_num();
-  	get_cent_norm(centroids,cent_norm);
-  	//centroids.print_num();
-
-  	vector<double> errors;
-  	errors.resize(standard_dev_range);
-  	uint current_error = 0, iteration = 1;
-  	bool _exit = false;
-
-  	Timer timer;
-		while(true){
-	  	vector<double> similarities_summary;
-	  	similarities_summary.resize(avail_centroids,0.0);
-	  	/* ----------- phase 3 building similarity sets ----------- */
-	  	ulmat similarity(avail_centroids);
-	  	dmat new_centroids(avail_centroids,avail_films);
-	  	cos_simil(dataset,centroids,new_centroids,similarity,users_norm,cent_norm,\
-	  							similarities_summary);
-	  	//similarity.print_list();
-
-	  	/* ----------- phase 4 cosine similraty between two centroids ----------- */
-	  	get_cent_norm(new_centroids,cent_norm);
-	  	check_empt_cent(dataset,new_centroids,cent_norm,similarity, \
-	  										similarities_summary);
-	  	double similarity_val = cent_simil(centroids,new_centroids,similarity);
-
-	  	errors[current_error] = similarity_val;
-	  	current_error++;
-	  	if(current_error > errors.size()-1)
-	  		current_error = 0;
-
-	  	cout << "--------------------------------------------------" << "\n";
-	  	if(iteration >= errors.size()) {
-	  		double standard_deviation_val = standard_deviation(errors);
-	  		cout << "Standard deviation = " << standard_deviation_val << "\n";
-	  		if(standard_deviation_val < 0.01)
-	  				_exit = true;
-
-	  	}
-
-	  	cout << "Current similarity = " << similarity_val << "\n";
-	  	if(similarity_val < 0.01 || _exit) {
-				print_result(similarity,similarities_summary);
-				double total_summary = 0.0;
-				total_summary = calculate_SSD(similarity,similarities_summary);
-				// Sending the result to the sink
-				char ssd [10];
-				double result = 0.0;
-				result = total_summary;
-		    sprintf (ssd, "%f", result);
-		    sender.send(ssd);
-	  		break;
-	  	}
-	  	cout << "--------------------------------------------------" << "\n\n";
-	  	centroids = move(new_centroids);
-	  	iteration++;
-
-	  	cout << "Transcurred seconds = " <<	(double)timer.elapsed()/1000 << endl;
-
-  	}
+		cout << "Current similarity = " << similarity_val << "\n";
+		if(similarity_val < 0.01 || _exit) {
+			double SSD = print_result(similarity,similarities_summary);
+      return SSD;
+			break;
+		}
+		cout << "--------------------------------------------------" << "\n\n";
+		centroids = move(new_centroids);
+		iteration++;
 	}
+	cout << "Transcurred seconds = " <<	(double)timer.elapsed()/1000 << endl;
+
 }
 
-int main(int argc, char *argv[]){
-	if(argc != 2){
+
+int main(int argc, char const *argv[]) {
+  if(argc != 2){
 		cerr << "Usage {" << argv[0] << " filename.txt}\n";
 		return -1;
 	}
 	/* ----------- phase 1 loading info into memory ----------- */
 	mat dataset;
 	load_data(argv[1],avail_users,dataset);
-	// dataset.print_dic();
+  // making context and server socket
+  context ctx;
+  socket c(ctx, socket_type::req); // socket_type = requester
 
-  // Initializing the worker with its job
-  taskWorker(dataset);
+  // connecting to server
+  c.connect("tcp://"+ip+":"+port);
+  message req, reply;
 
-	return 0;
+  // decomposing message package
+  str rpl = "none";
+
+  while(rpl != "There are no more work!") {
+    // making message package
+    req << "give me work";
+
+    // seding message package and waiting for server reply
+    cout << "Requesting work to the server!\n";
+    c.send(req);
+    c.receive(reply);
+
+    // decomposing reply
+    reply >> rpl;
+
+    // if there is work I will do it
+    if(rpl != "There are no more work!" && \
+       rpl != "Result was saved successfully!" && \
+		 	 rpl != "wait a moment") {
+      uint k = stoi(rpl);
+      double ssd = make_work(k, ref(dataset));
+
+      // delivering work done
+      req << "deliver result" << to_string(k) << to_string(ssd);
+      c.send(req);
+      c.receive(reply);
+
+      // decomposing reply
+      reply >> rpl;
+    }
+	else if(rpl == "wait a moment"){
+		this_thread::sleep_for(chrono::seconds(2));
+	}
+
+    // showing decomposed message
+    cout << rpl<<"\n";
+  }
+
+  return 0;
 }
