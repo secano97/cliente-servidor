@@ -187,6 +187,15 @@ uint user_movie_rate(uint user_id, uint movie_id) const {
       data[i] = dis(gen);
   }
 
+  void fill_like_num2() {
+    /* This will fill matrix with numbers */
+    //random_device rd;
+    //mt19937 gen(rd());
+    //uniform_real_distribution<> dis(1.0, 5.0);
+    for (size_t i = 0; i < data.size(); i++)
+      data[i] = 1.0+rand()%(5);
+  }
+
   void print_num() const {
     /* This will print matrix with numbers*/
     for (size_t r = 0; r < rows; r++) {

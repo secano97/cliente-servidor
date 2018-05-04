@@ -10,7 +10,8 @@
 //#include <math.h>
 #include <cmath>
 
-uint desired_work = 8; // Number of ks
+uint desired_work = 6; // Number of ks
+
 
 using namespace std;
 using namespace zmqpp;
@@ -40,9 +41,10 @@ using dvector = vector<double>; //vector of doubles
 using svector = vector<str>; // vector of strings
 
 /************GLOBALS*******************/
-condition_variable cv_vec, cv_qe, cv_vec_res;
-bool can_work_vec = true, can_work_qe = true, can_work_vec_res = true;
-mutex fork_vec, fork_qe, fork_vec_res;
+condition_variable cv_vec, cv_qe, cv_vec_res, cv_bool;
+bool can_work_vec = true, can_work_qe = true, can_work_vec_res = true,\
+can_work_bool = true;
+mutex fork_vec, fork_qe, fork_vec_res, fork_bool;
 /*************************************/
 
 
@@ -52,6 +54,21 @@ mutex fork_vec, fork_qe, fork_vec_res;
 str ip = "*", port = "5000";
 
 // Put the work quantity that you want
+
+bool k_finded_modify(uint opt, bool& finded_k){
+  unique_lock<mutex> lock(fork_bool);
+  cv_bool.wait(lock,[]{return can_work_bool;});
+  can_work_bool = false;
+  // ----- entering critical zone -----
+  if(opt){
+    finded_k == true;
+  }
+  can_work_bool= true;
+  cv_bool.notify_one();
+  // ----- ending critical zone -----
+
+  return finded_k;
+}
 
 double modify_results(dvector& results,uint k, double ssd, uint opt){
   double result = -1.0;
@@ -115,7 +132,7 @@ uint assign_work(svector& availability, pqueue& work){
   return ie.k;
 }
 
-void listen(socket& s, pqueue& work, dvector& results, svector& availability) {
+void listen(socket& s, pqueue& work, dvector& results, svector& availability, bool& finded_k) {
   /* it will put to server listen */
 
 
@@ -130,8 +147,11 @@ void listen(socket& s, pqueue& work, dvector& results, svector& availability) {
     str req_type, part1, part2;
     cliReq >> req_type;
 
+    //bool end = k_finded_modify(0, finded_k);
+    //cout << "k finded in listen "<< end << endl;
+    //out << finded_k << endl;
     // checking which request type a client made
-    if(req_type == "give me work" && !work.empty()) {
+    if(req_type == "give me work" && !work.empty() && !finded_k) {
 
       uint k = assign_work(availability, work);
       reply << to_string(k);
@@ -143,14 +163,14 @@ void listen(socket& s, pqueue& work, dvector& results, svector& availability) {
 
       double res = modify_results(results,k,ssd,1);// control of concurrence
       str r = modify_avail(availability,"cd",k,1);//control of concurrence
-      cout << "Result by worker with k = "<< k << " and ssd = " << ssd << "\n";
+      //cout << "Result by worker with k = "<< k << " and ssd = " << ssd << "\n";
       reply << "Result was saved successfully!";
     }
 
-    else if(req_type == "give me work" && work.empty()){
+    else if(req_type == "give me work" && work.empty() && !finded_k){
       reply << "wait a moment";
     }
-    else
+    else if(!work.empty() && finded_k)
       reply << "There are no more work!";
 
     // replying to client's request
@@ -232,7 +252,7 @@ bool is_available(const uint& k, svector& availability){
 
 void push_in_queue(const uint& k, double& priority, pqueue& work,\
                     svector& availability){
-  cout << "i'm in the push_in_queue with k: " << k <<" and priority: " \
+  //cout << "i'm in the push_in_queue with k: " << k <<" and priority: " \
        << priority << endl;
 
   str r = modify_avail(availability,"Q",k,1); // control of concurrence
@@ -241,21 +261,21 @@ void push_in_queue(const uint& k, double& priority, pqueue& work,\
 
 double get_angle_change(const int& k1, const int& k2, const int& k3,\
   pqueue& work, dvector& results, svector& availability){
-    cout << "i'm inside of angle change" << endl;
+    //cout << "i'm inside of angle change" << endl;
     double rad1 = atan(slope(k1, k2, results));
     double rad2 = atan(slope(k2, k3, results));
 
     double degree1 = rad_to_degrees(rad1);
-    cout << "degree1: "<< degree1 <<endl;
+    //cout << "degree1: "<< degree1 <<endl;
     double degree2 = rad_to_degrees(rad2);
-    cout << "degree2: "<< degree2 <<endl;
+    //cout << "degree2: "<< degree2 <<endl;
 
     double angular_change = abs(degree1 - degree2); // priority quit this maybe
 
     uint middle1 = (floor((k2-k1)/2)) + k1; // middle of the first straight
-    cout << "middle1 is: " << middle1 << endl;
+    //cout << "middle1 is: " << middle1 << endl;
     uint middle2 = (floor((k3-k2)/2)) + k2; // middle of the second straight
-    cout << "middle2 is: " << middle2 << endl;
+    //cout << "middle2 is: " << middle2 << endl;
 
     bool correct1 = middle_is_correct(k1,middle1);
     bool correct2 = middle_is_correct(k2,middle2);
@@ -292,6 +312,7 @@ int main(int argc, char const *argv[]) {
   svector availability;// vector of strings
   results.resize(desired_work, -1.0);
   availability.resize(desired_work,"D");
+  bool finded_k = false;
 
   int midle = floor((desired_work - 1)/2) + 1;
   double first_priority = 30.0;
@@ -309,7 +330,7 @@ int main(int argc, char const *argv[]) {
 
   // cliReq object will has client request, reply will has the server reply \
      package
-  thread t(listen,ref(s),ref(work),ref(results),ref(availability));
+  thread t(listen,ref(s),ref(work),ref(results),ref(availability), ref(finded_k));
 
 
   // From here we will execute the elbow method
@@ -332,14 +353,18 @@ int main(int argc, char const *argv[]) {
         k1 = there_are_any_behind(i,results);
         k3 = there_are_any_after(i,results);
         if( k1 != -1 && k3 != -1){
-          cout << "this is the k1: " << k1 << endl;
-          cout << "this is the k2: " << k2 << endl;
-          cout << "this is the k3: " << k3 << endl;
+          // cout << "this is the k1: " << k1 << endl;
+          // cout << "this is the k2: " << k2 << endl;
+          // cout << "this is the k3: " << k3 << endl;
           elbow_priority = get_angle_change(k1, k2,\
                               k3,work,results,availability);
           if(elbow_priority == -2.0){// ya encontró el k
               cout << "the best k is: " << best_k.k << '\n';
               find_k = false;
+              finded_k = true;
+              //cout << finded_k << endl;
+              //double end = k_finded_modify(1,finded_k);
+              //cout << end << endl;
               break;
           }
           else if (best_k.priority < elbow_priority){
